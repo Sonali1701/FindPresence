@@ -11,13 +11,15 @@ ENV_MAP = {
     "notify_from": "NOTIFY_FROM",
     "dashboard_password": "DASHBOARD_PASSWORD",
     "db_path": "DB_PATH",
+    "window_start_ist": "WINDOW_START_IST",
+    "window_end_ist": "WINDOW_END_IST",
 }
 
 DEFAULTS = {
     "inactive_threshold_minutes": 10,
     "poll_interval_seconds": 60,
     "window_start_ist": "18:30",
-    "window_end_ist": "03:30",
+    "window_end_ist": "04:30",
     "monitor_scope": "all",
     "monitor_users": [],
     "db_path": "findpresence.db",

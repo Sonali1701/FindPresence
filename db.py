@@ -1,4 +1,5 @@
 """SQLite layer — users, presence samples, inactivity events."""
+import os
 import sqlite3
 import threading
 import time
@@ -7,6 +8,9 @@ _lock = threading.Lock()
 
 
 def connect(path):
+    parent = os.path.dirname(os.path.abspath(path))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False, timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

@@ -1,0 +1,22 @@
+{
+  "tenant_id": "YOUR-TENANT-ID-GUID",
+  "client_id": "YOUR-APP-CLIENT-ID-GUID",
+  "client_secret": "YOUR-CLIENT-SECRET",
+
+  "notify_to": "ricky@radixsol.com",
+  "notify_from": "alerts@yourdomain.onmicrosoft.com",
+
+  "inactive_threshold_minutes": 10,
+  "poll_interval_seconds": 60,
+
+  "window_start_ist": "18:30",
+  "window_end_ist": "04:30",
+
+  "monitor_scope": "all",
+  "monitor_users": [],
+
+  "db_path": "findpresence.db",
+  "ignore_file": "ignore.txt",
+
+  "dashboard_password": "change-me"
+}

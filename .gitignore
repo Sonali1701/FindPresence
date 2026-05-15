@@ -1,0 +1,10 @@
+config.json
+*.db
+*.db-wal
+*.db-shm
+state.json
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env

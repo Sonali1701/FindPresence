@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}FindPresence{% endblock %}</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --panel2: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+    --good: #22c55e; --warn: #f59e0b; --bad: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+         margin: 0; background: var(--bg); color: var(--text); }
+  header { background: var(--panel); padding: 16px 24px; display: flex;
+           align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header a { color: var(--accent); text-decoration: none; margin-left: 16px; }
+  main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+           gap: 12px; margin-bottom: 24px; }
+  .card { background: var(--panel); border-radius: 8px; padding: 16px; }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase;
+                 letter-spacing: 0.05em; }
+  .card .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  .card.good .value { color: var(--good); }
+  .card.warn .value { color: var(--warn); }
+  .card.bad .value { color: var(--bad); }
+  .panel { background: var(--panel); border-radius: 8px; padding: 16px;
+           margin-bottom: 24px; }
+  .panel h2 { font-size: 14px; margin: 0 0 12px; text-transform: uppercase;
+              letter-spacing: 0.05em; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--panel2); }
+  th { color: var(--muted); font-weight: 500; text-transform: uppercase;
+       font-size: 11px; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px;
+          font-size: 11px; font-weight: 500; }
+  .pill.good { background: rgba(34,197,94,.15); color: var(--good); }
+  .pill.warn { background: rgba(245,158,11,.15); color: var(--warn); }
+  .pill.bad  { background: rgba(239,68,68,.15);  color: var(--bad); }
+  .pill.muted { background: var(--panel2); color: var(--muted); }
+  button { background: var(--panel2); border: none; color: var(--text);
+           padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  button:hover { background: var(--accent); color: var(--bg); }
+  form.inline { display: inline; }
+  .login-wrap { max-width: 360px; margin: 80px auto; }
+  .login-wrap input { width: 100%; padding: 10px; border-radius: 6px;
+                      border: 1px solid var(--panel2); background: var(--panel);
+                      color: var(--text); margin-bottom: 12px; }
+  .login-wrap button { width: 100%; padding: 10px; }
+  .err { color: var(--bad); font-size: 13px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

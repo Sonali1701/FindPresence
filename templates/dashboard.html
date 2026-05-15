@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FindPresence{% endblock %}
+{% block body %}
+<header>
+  <div>
+    <h1>FindPresence</h1>
+    <div class="meta">Monitoring window: {{ window }} · Threshold: {{ threshold_min }} min · Notifying {{ notify_to }}</div>
+  </div>
+  <div class="meta">
+    {{ now_ist_str }}
+    {% if armed %}
+      <span class="pill good">ARMED</span>
+    {% else %}
+      <span class="pill muted">OUTSIDE WINDOW</span>
+    {% endif %}
+    <a href="{{ url_for('logout') }}">Sign out</a>
+  </div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card"><div class="label">Monitored users</div>
+      <div class="value">{{ monitored }}</div></div>
+    <div class="card {% if total_alerts %}bad{% else %}good{% endif %}">
+      <div class="label">Alerts today</div>
+      <div class="value">{{ total_alerts }}</div></div>
+    <div class="card warn"><div class="label">Total inactive (24h)</div>
+      <div class="value">{{ total_inactive|dur }}</div></div>
+    <div class="card"><div class="label">Last poll</div>
+      <div class="value" style="font-size:14px;">
+        {% if latest_poll %}{{ latest_poll['ts']|ist }}<br>
+          <span class="pill {{ 'good' if latest_poll['in_window'] else 'muted' }}">
+            {{ latest_poll['users_polled'] }} users
+          </span>{% else %}—{% endif %}
+      </div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Inactive minutes per user — last 7 days (top 10)</h2>
+    <canvas id="weekChart" height="80"></canvas>
+  </section>
+
+  <section class="panel">
+    <h2>Current users</h2>
+    <table>
+      <thead><tr>
+        <th>Name</th><th>Email</th><th>Presence</th>
+        <th>Last active</th><th>Events (24h)</th><th>Inactive (24h)</th>
+        <th>Alerts (24h)</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td>{{ u['display_name'] or '—' }}
+              {% if u['ignored'] %}<span class="pill muted">ignored</span>{% endif %}
+          </td>
+          <td>{{ u['email'] or '—' }}</td>
+          <td>
+            {% set s = u['current_state'] %}
+            {% if s in ('Available',) %}<span class="pill good">{{ s }}</span>
+            {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}
+              <span class="pill warn">{{ s }}</span>
+            {% else %}<span class="pill bad">{{ s or '—' }}</span>{% endif %}
+          </td>
+          <td>{{ u['last_active_ts']|ist }}</td>
+          <td>{{ u['event_count'] }}</td>
+          <td>{{ u['total_inactive_seconds']|dur }}</td>
+          <td>{{ u['alert_count'] }}</td>
+          <td>
+            <form class="inline" method="post"
+                  action="{{ url_for('toggle_ignore', uid=u['id']) }}">
+              <button type="submit">
+                {% if u['ignored'] %}Un-ignore{% else %}Ignore{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" style="color:var(--muted)">No users yet — waiting for first poll.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Inactivity events (last 24h)</h2>
+    <table>
+      <thead><tr>
+        <th>Started</th><th>Ended</th><th>User</th>
+        <th>Duration</th><th>State</th><th>Alerted</th>
+      </tr></thead>
+      <tbody>
+      {% for e in events %}
+        <tr>
+          <td>{{ e['started_ts']|ist }}</td>
+          <td>{{ e['ended_ts']|ist }}</td>
+          <td>{{ e['display_name'] or e['email'] }}</td>
+          <td>{{ e['duration_seconds']|dur }}</td>
+          <td>{{ e['state_during'] }}</td>
+          <td>
+            {% if e['alerted'] %}<span class="pill bad">yes</span>
+            {% else %}<span class="pill muted">no</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" style="color:var(--muted)">No inactivity events in the last 24h.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const labels = {{ chart_labels|tojson }};
+  const data = {{ chart_values|tojson }};
+  if (labels.length) {
+    new Chart(document.getElementById("weekChart"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{ label: "Minutes inactive (7d)", data,
+                     backgroundColor: "rgba(56,189,248,0.6)" }]
+      },
+      options: {
+        plugins: { legend: { labels: { color: "#e2e8f0" } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+          y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } }
+        }
+      }
+    });
+  }
+</script>
+{% endblock %}

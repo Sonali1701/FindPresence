@@ -1,0 +1,4 @@
+msal>=1.28.0
+requests>=2.31.0
+Flask>=3.0.0
+gunicorn>=21.2.0

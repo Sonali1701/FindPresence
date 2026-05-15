@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Login — FindPresence{% endblock %}
+{% block body %}
+<div class="login-wrap">
+  <h1>FindPresence</h1>
+  <p style="color: var(--muted)">Enter dashboard password.</p>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <form method="post">
+    <input type="password" name="password" placeholder="Password" autofocus>
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

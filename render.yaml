@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: findpresence
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DB_PATH
+        value: /var/data/findpresence.db
+      - key: TENANT_ID
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false
+      - key: NOTIFY_FROM
+        sync: false
+      - key: NOTIFY_TO
+        value: ricky@radixsol.com
+      - key: DASHBOARD_PASSWORD
+        sync: false

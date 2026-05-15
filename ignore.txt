@@ -1,0 +1,5 @@
+# One email per line. Lines starting with # are ignored.
+# Example:
+# bob@yourdomain.com
+# alerts@yourdomain.onmicrosoft.com
+sonali.singh@radixsol.com

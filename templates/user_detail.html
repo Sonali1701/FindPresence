@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ user['display_name'] or user['email'] }} — FindPresence{% endblock %}
+{% block body %}
+<header>
+  <div>
+    <h1>User Details</h1>
+    <div class="meta">{{ user['display_name'] or user['email'] }}</div>
+  </div>
+  <div class="meta">
+    {{ now_ist_str }}
+    <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+  </div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <div class="label">Current Status</div>
+      <div class="value">
+        {% set s = user['current_state'] %}
+        {% if s in ('Available',) %}<span class="pill good">{{ s }}</span>
+        {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}
+          <span class="pill warn">{{ s }}</span>
+        {% else %}<span class="pill bad">{{ s or '—' }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">Total Inactive ({{ days }} days)</div>
+      <div class="value">{{ total_inactive|dur }}</div>
+    </div>
+    <div class="card {% if total_alerts %}bad{% else %}good{% endif %}">
+      <div class="label">Alerts ({{ days }} days)</div>
+      <div class="value">{{ total_alerts }}</div>
+    </div>
+    <div class="card warn">
+      <div class="label">Avg Inactive Duration</div>
+      <div class="value">{{ avg_inactive|dur }}</div>
+    </div>
+    <div class="card">
+      <div class="label">Last Active</div>
+      <div class="value" style="font-size:14px;">{{ user['last_active_ts']|ist }}</div>
+    </div>
+    <div class="card">
+      <div class="label">Email</div>
+      <div class="value" style="font-size:14px;">{{ user['email'] or '—' }}</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Inactivity Trend (Last {{ days }} days)</h2>
+    <div style="margin-bottom: 12px;">
+      <a href="?days=7" class="pill {% if days == 7 %}good{% else %}muted{% endif %}">7 days</a>
+      <a href="?days=30" class="pill {% if days == 30 %}good{% else %}muted{% endif %}">30 days</a>
+      <a href="?days=90" class="pill {% if days == 90 %}good{% else %}muted{% endif %}">90 days</a>
+    </div>
+    <canvas id="trendChart" height="100"></canvas>
+  </section>
+
+  <section class="panel">
+    <h2>Daily Breakdown (Last {{ days }} days)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Events</th>
+          <th>Total Inactive</th>
+          <th>Alerts</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for day in daily_breakdown %}
+        <tr>
+          <td>{{ day['date'] }}</td>
+          <td>{{ day['event_count'] }}</td>
+          <td>{{ day['total_inactive_seconds']|dur }}</td>
+          <td>
+            {% if day['alert_count'] %}<span class="pill bad">{{ day['alert_count'] }}</span>
+            {% else %}<span class="pill muted">0</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="color:var(--muted)">No data available for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Inactivity Events (Last {{ days }} days)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Ended</th>
+          <th>Duration</th>
+          <th>State</th>
+          <th>Alerted</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+        <tr>
+          <td>{{ e['started_ts']|ist }}</td>
+          <td>{{ e['ended_ts']|ist }}</td>
+          <td>{{ e['duration_seconds']|dur }}</td>
+          <td>{{ e['state_during'] }}</td>
+          <td>
+            {% if e['alerted'] %}<span class="pill bad">yes</span>
+            {% else %}<span class="pill muted">no</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:var(--muted)">No inactivity events in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const trendData = {{ trend_data|tojson }};
+  if (trendData.length) {
+    const labels = trendData.map(d => d.date);
+    const data = trendData.map(d => Math.round(d.total_inactive_seconds / 60));
+    
+    new Chart(document.getElementById("trendChart"), {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{ 
+          label: "Minutes inactive per day", 
+          data,
+          borderColor: "rgba(56,189,248,1)",
+          backgroundColor: "rgba(56,189,248,0.1)",
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        plugins: { legend: { labels: { color: "#e2e8f0" } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+          y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } }
+        }
+      }
+    });
+  }
+</script>
+{% endblock %}

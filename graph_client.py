@@ -24,7 +24,7 @@ class GraphClient:
         if not self._token or time.time() > self._token_expires - 60:
             result = self._app.acquire_token_for_client(scopes=SCOPE)
             if "access_token" not in result:
-                raise RuntimeError(f"Auth failed: {result.get('error_description')}")
+                raise RuntimeError(f"Auth failed: {result}")
             self._token = result["access_token"]
             self._token_expires = time.time() + result.get("expires_in", 3600)
         return {"Authorization": f"Bearer {self._token}",

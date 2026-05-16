@@ -22,9 +22,9 @@
     <div class="card"><div class="label">Monitored users</div>
       <div class="value">{{ monitored }}</div></div>
     <div class="card {% if total_alerts %}bad{% else %}good{% endif %}">
-      <div class="label">Alerts today</div>
+      <div class="label">Alerts ({{ days }}d)</div>
       <div class="value">{{ total_alerts }}</div></div>
-    <div class="card warn"><div class="label">Total inactive (24h)</div>
+    <div class="card warn"><div class="label">Total inactive ({{ days }}d)</div>
       <div class="value">{{ total_inactive|dur }}</div></div>
     <div class="card"><div class="label">Last poll</div>
       <div class="value" style="font-size:14px;">
@@ -41,18 +41,28 @@
   </section>
 
   <section class="panel">
-    <h2>Current users</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h2 style="margin:0;">User Activity</h2>
+      <div>
+        <a href="?days=1" class="pill {% if days == 1 %}good{% else %}muted{% endif %}">1 day</a>
+        <a href="?days=7" class="pill {% if days == 7 %}good{% else %}muted{% endif %}">7 days</a>
+        <a href="?days=30" class="pill {% if days == 30 %}good{% else %}muted{% endif %}">30 days</a>
+      </div>
+    </div>
     <table>
       <thead><tr>
         <th>Name</th><th>Email</th><th>Presence</th>
-        <th>Last active</th><th>Events (24h)</th><th>Inactive (24h)</th>
-        <th>Alerts (24h)</th><th></th>
+        <th>Last active</th><th>Events ({{ days }}d)</th><th>Inactive ({{ days }}d)</th>
+        <th>Alerts ({{ days }}d)</th><th></th>
       </tr></thead>
       <tbody>
       {% for u in users %}
         <tr>
-          <td>{{ u['display_name'] or '—' }}
-              {% if u['ignored'] %}<span class="pill muted">ignored</span>{% endif %}
+          <td>
+            <a href="{{ url_for('user_detail', uid=u['id']) }}" style="color:var(--accent); text-decoration:none;">
+              {{ u['display_name'] or '—' }}
+            </a>
+            {% if u['ignored'] %}<span class="pill muted">ignored</span>{% endif %}
           </td>
           <td>{{ u['email'] or '—' }}</td>
           <td>
@@ -83,7 +93,7 @@
   </section>
 
   <section class="panel">
-    <h2>Inactivity events (last 24h)</h2>
+    <h2>Inactivity events (last {{ days }} days)</h2>
     <table>
       <thead><tr>
         <th>Started</th><th>Ended</th><th>User</th>

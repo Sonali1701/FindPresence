@@ -184,3 +184,91 @@ def latest_poll(conn):
         "SELECT * FROM poll_log ORDER BY ts DESC LIMIT 1"
     ).fetchone()
     return row
+
+
+def user_detail(conn, user_id, since_ts=None):
+    """Get detailed information for a specific user including all events."""
+    if since_ts is None:
+        since_ts = 0
+    
+    user = conn.execute(
+        "SELECT * FROM users WHERE id=?", (user_id,)
+    ).fetchone()
+    
+    if not user:
+        return None
+    
+    events = conn.execute(
+        """SELECT * FROM inactivity_events
+           WHERE user_id=? AND started_ts >= ?
+           ORDER BY started_ts DESC""",
+        (user_id, since_ts),
+    ).fetchall()
+    
+    return {
+        "user": dict(user),
+        "events": [dict(e) for e in events],
+    }
+
+
+def user_daily_breakdown(conn, user_id, days=30):
+    """Get daily inactivity breakdown for a user over the specified period."""
+    since_ts = time.time() - days * 24 * 3600
+    
+    rows = conn.execute(
+        """SELECT 
+           DATE(started_ts, 'unixepoch') as date,
+           COUNT(*) as event_count,
+           COALESCE(SUM(duration_seconds), 0) as total_inactive_seconds,
+           COALESCE(SUM(alerted), 0) as alert_count
+           FROM inactivity_events
+           WHERE user_id=? AND started_ts >= ?
+           GROUP BY DATE(started_ts, 'unixepoch')
+           ORDER BY date DESC""",
+        (user_id, since_ts),
+    ).fetchall()
+    
+    return [dict(r) for r in rows]
+
+
+def user_trend_data(conn, user_id, days=30):
+    """Get trend data for a user over the specified period."""
+    since_ts = time.time() - days * 24 * 3600
+    
+    rows = conn.execute(
+        """SELECT 
+           DATE(started_ts, 'unixepoch') as date,
+           COALESCE(SUM(duration_seconds), 0) as total_inactive_seconds,
+           COUNT(*) as event_count
+           FROM inactivity_events
+           WHERE user_id=? AND started_ts >= ?
+           GROUP BY DATE(started_ts, 'unixepoch')
+           ORDER BY date ASC""",
+        (user_id, since_ts),
+    ).fetchall()
+    
+    return [dict(r) for r in rows]
+
+
+def all_user_stats(conn, since_ts=None):
+    """Get statistics for all users for comparison."""
+    if since_ts is None:
+        since_ts = time.time() - 7 * 24 * 3600
+    
+    rows = conn.execute(
+        """SELECT 
+           u.id, u.email, u.display_name, u.ignored,
+           u.current_state, u.last_active_ts,
+           COUNT(e.id) AS event_count,
+           COALESCE(SUM(e.duration_seconds), 0) AS total_inactive_seconds,
+           COALESCE(SUM(e.alerted), 0) AS alert_count,
+           AVG(e.duration_seconds) as avg_inactive_seconds
+           FROM users u
+           LEFT JOIN inactivity_events e
+             ON e.user_id=u.id AND e.started_ts >= ?
+           GROUP BY u.id
+           ORDER BY total_inactive_seconds DESC""",
+        (since_ts,),
+    ).fetchall()
+    
+    return [dict(r) for r in rows]

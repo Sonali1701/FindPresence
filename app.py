@@ -96,7 +96,7 @@ def dashboard():
     week_start = now - 7 * 24 * 3600
 
     summary = db.user_summary(conn, summary_start)
-    events = db.recent_events(conn, summary_start, limit=100)
+    events = db.recent_events(conn, summary_start, limit=50)
     last_poll, last_ok, last_err = db.poll_health(conn)
 
     total_alerts = sum(r["alert_count"] for r in summary)
@@ -104,10 +104,26 @@ def dashboard():
     monitored = sum(1 for r in summary if not r["ignored"])
     users_with_data = sum(1 for r in summary if r["current_state"])
 
+    # Currently inactive users (real-time)
+    currently_inactive = db.currently_inactive_users(conn)
+    currently_inactive_count = len(currently_inactive)
+
+    # Repeat offenders — users who triggered 10+ min threshold most times
+    offenders = db.repeat_offenders(conn, summary_start)
+
+    # Frequency chart (bar) — times each user hit 10+ min threshold
+    freq_rows = db.inactivity_frequency_chart(conn, summary_start)
+    freq_labels = [r["display_name"] or r["email"] or "?" for r in freq_rows]
+    freq_values = [r["times_alerted"] for r in freq_rows]
+
+    # Weekly inactive-minutes chart (existing)
     week_summary = db.user_summary(conn, week_start)
     top = [r for r in week_summary if (r["total_inactive_seconds"] or 0) > 0][:10]
     chart_labels = [r["display_name"] or r["email"] or "?" for r in top]
     chart_values = [int((r["total_inactive_seconds"] or 0) / 60) for r in top]
+
+    # Users who had at least one 10+ min alert in the period — for prominent display
+    alerted_users = [r for r in summary if (r["alert_count"] or 0) > 0 and not r["ignored"]]
 
     # Polling status for the banner.
     status = "ok"
@@ -130,6 +146,7 @@ def dashboard():
         window=f"{cfg['window_start_ist']} – {cfg['window_end_ist']} IST",
         threshold_min=cfg["inactive_threshold_minutes"],
         users=summary,
+        alerted_users=alerted_users,
         events=events,
         latest_poll=last_poll,
         last_ok=last_ok,
@@ -140,6 +157,11 @@ def dashboard():
         total_inactive=total_inactive,
         monitored=monitored,
         users_with_data=users_with_data,
+        currently_inactive=currently_inactive,
+        currently_inactive_count=currently_inactive_count,
+        offenders=offenders,
+        freq_labels=freq_labels,
+        freq_values=freq_values,
         chart_labels=chart_labels,
         chart_values=chart_values,
         notify_to=cfg["notify_to"],

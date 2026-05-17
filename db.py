@@ -278,6 +278,51 @@ def user_trend_data(conn, user_id, days=30):
     return [dict(r) for r in rows]
 
 
+def currently_inactive_users(conn):
+    """Users currently in an inactivity streak, ordered by streak duration (longest first)."""
+    return conn.execute(
+        """SELECT u.id, u.email, u.display_name, u.current_state,
+                  u.streak_started_ts,
+                  (strftime('%s','now') - u.streak_started_ts) AS streak_seconds
+           FROM users u
+           WHERE u.in_inactive_streak=1 AND u.ignored=0
+           ORDER BY streak_seconds DESC"""
+    ).fetchall()
+
+
+def repeat_offenders(conn, since_ts):
+    """Users with the most alerted inactivity events (10+ min), sorted by frequency."""
+    return conn.execute(
+        """SELECT u.id, u.email, u.display_name,
+                  COUNT(e.id) AS times_alerted,
+                  COALESCE(SUM(e.duration_seconds), 0) AS total_inactive_seconds,
+                  MAX(e.started_ts) AS last_inactive_ts
+           FROM users u
+           JOIN inactivity_events e ON e.user_id=u.id
+           WHERE e.alerted=1 AND e.started_ts >= ? AND u.ignored=0
+           GROUP BY u.id
+           ORDER BY times_alerted DESC
+           LIMIT 15""",
+        (since_ts,),
+    ).fetchall()
+
+
+def inactivity_frequency_chart(conn, since_ts):
+    """Per-user count of 10+ min inactivity events for chart, top 12."""
+    return conn.execute(
+        """SELECT u.display_name, u.email,
+                  COUNT(e.id) AS times_alerted,
+                  COALESCE(SUM(e.duration_seconds), 0) AS total_inactive_seconds
+           FROM users u
+           JOIN inactivity_events e ON e.user_id=u.id
+           WHERE e.alerted=1 AND e.started_ts >= ? AND u.ignored=0
+           GROUP BY u.id
+           ORDER BY times_alerted DESC
+           LIMIT 12""",
+        (since_ts,),
+    ).fetchall()
+
+
 def all_user_stats(conn, since_ts=None):
     """Get statistics for all users for comparison."""
     if since_ts is None:

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}FindPresence{% endblock %}</title>
+{% block head %}{% endblock %}
 <style>
   :root {
     --bg: #0f172a; --panel: #1e293b; --panel2: #334155;
@@ -53,6 +54,48 @@
                       color: var(--text); margin-bottom: 12px; }
   .login-wrap button { width: 100%; padding: 10px; }
   .err { color: var(--bad); font-size: 13px; margin-bottom: 12px; }
+
+  .card .sublabel { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  .banner { display: flex; gap: 14px; align-items: flex-start;
+            padding: 14px 18px; border-radius: 8px; margin-bottom: 24px;
+            border-left: 4px solid var(--panel2); background: var(--panel); }
+  .banner-icon { font-size: 22px; font-weight: 700;
+                 width: 28px; height: 28px; flex-shrink: 0;
+                 display: flex; align-items: center; justify-content: center;
+                 border-radius: 50%; }
+  .banner-body { flex: 1; min-width: 0; }
+  .banner-title { font-weight: 600; font-size: 14px; }
+  .banner-text { color: var(--muted); font-size: 13px; margin-top: 2px;
+                 word-break: break-word; }
+  .banner-meta { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  .banner-ok    { border-left-color: var(--good); }
+  .banner-ok    .banner-icon { background: rgba(34,197,94,.15);  color: var(--good); }
+  .banner-wait  { border-left-color: var(--muted); }
+  .banner-wait  .banner-icon { background: var(--panel2); color: var(--muted); }
+  .banner-stale { border-left-color: var(--warn); }
+  .banner-stale .banner-icon { background: rgba(245,158,11,.15); color: var(--warn); }
+  .banner-error { border-left-color: var(--bad); }
+  .banner-error .banner-icon { background: rgba(239,68,68,.15); color: var(--bad); }
+
+  .panel-head { display: flex; justify-content: space-between;
+                align-items: center; gap: 12px; flex-wrap: wrap;
+                margin-bottom: 12px; }
+  .panel-controls { display: flex; gap: 10px; align-items: center;
+                    flex-wrap: wrap; }
+  .panel-controls input[type=search] {
+    background: var(--bg); color: var(--text); border: 1px solid var(--panel2);
+    border-radius: 6px; padding: 6px 10px; font-size: 13px; min-width: 220px; }
+  .panel-controls .check { color: var(--muted); font-size: 12px;
+                           display: flex; align-items: center; gap: 6px; }
+  .panel-controls .sep { width: 1px; height: 18px; background: var(--panel2); }
+  .panel-controls a.pill { text-decoration: none; }
+
+  table.sticky thead th { position: sticky; top: 0; background: var(--panel);
+                          z-index: 1; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 12px;
+           font-size: 13px; }
+  .link { color: var(--accent); text-decoration: none; }
+  .link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>

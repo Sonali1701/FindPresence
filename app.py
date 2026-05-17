@@ -97,19 +97,30 @@ def dashboard():
 
     summary = db.user_summary(conn, summary_start)
     events = db.recent_events(conn, summary_start, limit=100)
-    poll = db.latest_poll(conn)
+    last_poll, last_ok, last_err = db.poll_health(conn)
 
     total_alerts = sum(r["alert_count"] for r in summary)
     total_inactive = sum(r["total_inactive_seconds"] for r in summary)
     monitored = sum(1 for r in summary if not r["ignored"])
+    users_with_data = sum(1 for r in summary if r["current_state"])
 
     week_summary = db.user_summary(conn, week_start)
-    chart_labels = [r["display_name"] or r["email"] or "?" for r in week_summary[:10]]
-    chart_values = [int((r["total_inactive_seconds"] or 0) / 60) for r in week_summary[:10]]
+    top = [r for r in week_summary if (r["total_inactive_seconds"] or 0) > 0][:10]
+    chart_labels = [r["display_name"] or r["email"] or "?" for r in top]
+    chart_values = [int((r["total_inactive_seconds"] or 0) / 60) for r in top]
 
-    # Debug logging
-    log.info("Dashboard: %d users in summary, %d events, %d total alerts, %d monitored",
-             len(summary), len(events), total_alerts, monitored)
+    # Polling status for the banner.
+    status = "ok"
+    status_msg = "Polls are running."
+    if not last_poll:
+        status = "wait"
+        status_msg = "Waiting for the first poll to complete…"
+    elif not last_ok or (last_err and last_err["ts"] > (last_ok["ts"] if last_ok else 0)):
+        status = "error"
+        status_msg = (last_err["error_text"] if last_err else "Recent poll failed.")
+    elif (time.time() - last_poll["ts"]) > 180:
+        status = "stale"
+        status_msg = f"No poll in {int((time.time() - last_poll['ts']) // 60)} min."
 
     return render_template(
         "dashboard.html",
@@ -120,10 +131,15 @@ def dashboard():
         threshold_min=cfg["inactive_threshold_minutes"],
         users=summary,
         events=events,
-        latest_poll=poll,
+        latest_poll=last_poll,
+        last_ok=last_ok,
+        last_err=last_err,
+        status=status,
+        status_msg=status_msg,
         total_alerts=total_alerts,
         total_inactive=total_inactive,
         monitored=monitored,
+        users_with_data=users_with_data,
         chart_labels=chart_labels,
         chart_values=chart_values,
         notify_to=cfg["notify_to"],

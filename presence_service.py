@@ -95,49 +95,46 @@ def run_loop(cfg, stop_event):
 
 def poll_once(client, conn, cfg, threshold):
     armed = in_window(cfg)
-    
-    if not armed:
-        log.info("Outside monitoring window - skipping poll (current: %s IST, window: %s-%s)",
-                 now_ist().strftime("%H:%M"), cfg.get("window_start_ist", "18:30"), cfg.get("window_end_ist", "03:30"))
-        return
 
-    log.info("Starting poll - inside monitoring window")
-    
+    # We still refresh the user list outside the window so the dashboard
+    # shows the roster — but we only fetch presence + alert while armed.
     try:
         users = pick_users(client, cfg)
-        log.info("Fetched %d users from Microsoft Graph", len(users))
     except Exception as e:
-        log.error("Failed to fetch users from Microsoft Graph: %s", e)
+        err = f"list_users failed: {e}"
+        log.error(err)
+        db.log_poll(conn, armed, 0, note="list_users error",
+                    success=False, error_text=err)
         return
-    
-    file_ignore = load_ignore_file(cfg.get("ignore_file"))
 
-    # Refresh user rows, apply ignore.txt
+    file_ignore = load_ignore_file(cfg.get("ignore_file"))
     for u in users:
         email = user_email(u)
         db.upsert_user(conn, u["id"], email, u.get("displayName", ""))
         if email in file_ignore:
             db.set_ignored(conn, u["id"], True)
 
-    # Pull current ignore flags + ids actually being monitored
+    if not armed:
+        db.log_poll(conn, armed, 0, note="outside window")
+        return
+
     rows = {r["id"]: r for r in db.all_users(conn)}
     active_ids = [u["id"] for u in users
                   if not rows.get(u["id"]) or not rows[u["id"]]["ignored"]]
 
-    log.info("Active users to poll: %d (ignored: %d)", len(active_ids), len(users) - len(active_ids))
-
     if not active_ids:
         db.log_poll(conn, armed, 0, note="no users to poll")
-        log.info("No active users to poll - skipping")
         return
 
     try:
         presences = client.get_presences(active_ids)
-        log.info("Fetched presence for %d users", len(presences))
     except Exception as e:
-        log.error("Failed to fetch presence data: %s", e)
+        err = f"get_presences failed: {e}"
+        log.error(err)
+        db.log_poll(conn, armed, len(active_ids), note="presence fetch error",
+                    success=False, error_text=err)
         return
-    
+
     now = time.time()
 
     for uid in active_ids:

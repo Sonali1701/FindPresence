@@ -55,15 +55,27 @@ CREATE TABLE IF NOT EXISTS poll_log (
     ts REAL NOT NULL,
     in_window INTEGER NOT NULL,
     users_polled INTEGER NOT NULL,
-    note TEXT
+    note TEXT,
+    success INTEGER NOT NULL DEFAULT 1,
+    error_text TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_poll_ts ON poll_log(ts);
 """
 
 
+def _safe_add_column(conn, table, column, ddl):
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+    except sqlite3.OperationalError:
+        pass
+
+
 def init_db(conn):
     with _lock, conn:
         conn.executescript(SCHEMA)
+        # Backfill columns on databases created before these were added.
+        _safe_add_column(conn, "poll_log", "success", "INTEGER NOT NULL DEFAULT 1")
+        _safe_add_column(conn, "poll_log", "error_text", "TEXT")
 
 
 def upsert_user(conn, uid, email, name):
@@ -136,15 +148,31 @@ def mark_alerted(conn, uid, ts):
         )
 
 
-def log_poll(conn, in_window, users_polled, note=None):
+def log_poll(conn, in_window, users_polled, note=None, success=True, error_text=None):
     with _lock, conn:
         conn.execute(
-            "INSERT INTO poll_log(ts, in_window, users_polled, note) VALUES (?, ?, ?, ?)",
-            (time.time(), 1 if in_window else 0, users_polled, note),
+            """INSERT INTO poll_log(ts, in_window, users_polled, note, success, error_text)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (time.time(), 1 if in_window else 0, users_polled, note,
+             1 if success else 0, error_text),
         )
         conn.execute(
             "DELETE FROM poll_log WHERE id < (SELECT MAX(id)-1000 FROM poll_log)"
         )
+
+
+def poll_health(conn):
+    """Return (last_poll_row, last_success_row, last_error_row) for status panel."""
+    last = conn.execute(
+        "SELECT * FROM poll_log ORDER BY ts DESC LIMIT 1"
+    ).fetchone()
+    last_ok = conn.execute(
+        "SELECT * FROM poll_log WHERE success=1 ORDER BY ts DESC LIMIT 1"
+    ).fetchone()
+    last_err = conn.execute(
+        "SELECT * FROM poll_log WHERE success=0 ORDER BY ts DESC LIMIT 1"
+    ).fetchone()
+    return last, last_ok, last_err
 
 
 def all_users(conn):

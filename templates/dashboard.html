@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — FindPresence{% endblock %}
+{% block head %}
+<meta http-equiv="refresh" content="120">
+{% endblock %}
 {% block body %}
 <header>
   <div>
     <h1>FindPresence</h1>
-    <div class="meta">Monitoring window: {{ window }} · Threshold: {{ threshold_min }} min · Notifying {{ notify_to }}</div>
+    <div class="meta">Window: {{ window }} · Threshold: {{ threshold_min }} min · Notifying {{ notify_to }}</div>
   </div>
   <div class="meta">
     {{ now_ist_str }}
@@ -18,59 +21,109 @@
 </header>
 
 <main>
+  <section class="banner banner-{{ status }}">
+    <div class="banner-icon">
+      {% if status == 'ok' %}✓
+      {% elif status == 'wait' %}…
+      {% elif status == 'stale' %}!
+      {% else %}✗{% endif %}
+    </div>
+    <div class="banner-body">
+      <div class="banner-title">
+        {% if status == 'ok' %}Polling healthy
+        {% elif status == 'wait' %}Initializing
+        {% elif status == 'stale' %}Polling stalled
+        {% else %}Polling error{% endif %}
+      </div>
+      <div class="banner-text">{{ status_msg }}</div>
+      {% if latest_poll %}
+      <div class="banner-meta">
+        Last poll: {{ latest_poll['ts']|ist }} · {{ latest_poll['users_polled'] }} users
+        {% if latest_poll['note'] %}· {{ latest_poll['note'] }}{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
   <section class="cards">
-    <div class="card"><div class="label">Monitored users</div>
-      <div class="value">{{ monitored }}</div></div>
+    <div class="card">
+      <div class="label">Monitored users</div>
+      <div class="value">{{ monitored }}</div>
+      <div class="sublabel">{{ users_with_data }} with live presence</div>
+    </div>
     <div class="card {% if total_alerts %}bad{% else %}good{% endif %}">
       <div class="label">Alerts ({{ days }}d)</div>
-      <div class="value">{{ total_alerts }}</div></div>
-    <div class="card warn"><div class="label">Total inactive ({{ days }}d)</div>
-      <div class="value">{{ total_inactive|dur }}</div></div>
-    <div class="card"><div class="label">Last poll</div>
+      <div class="value">{{ total_alerts }}</div>
+    </div>
+    <div class="card warn">
+      <div class="label">Total inactive ({{ days }}d)</div>
+      <div class="value">{{ total_inactive|dur }}</div>
+    </div>
+    <div class="card">
+      <div class="label">Last poll</div>
       <div class="value" style="font-size:14px;">
-        {% if latest_poll %}{{ latest_poll['ts']|ist }}<br>
-          <span class="pill {{ 'good' if latest_poll['in_window'] else 'muted' }}">
-            {{ latest_poll['users_polled'] }} users
-          </span>{% else %}—{% endif %}
-      </div></div>
+        {% if latest_poll %}{{ latest_poll['ts']|ist }}{% else %}—{% endif %}
+      </div>
+      {% if latest_poll %}
+      <div class="sublabel">
+        <span class="pill {{ 'good' if latest_poll['success'] else 'bad' }}">
+          {{ 'ok' if latest_poll['success'] else 'failed' }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
   </section>
 
   <section class="panel">
     <h2>Inactive minutes per user — last 7 days (top 10)</h2>
-    <canvas id="weekChart" height="80"></canvas>
+    {% if chart_labels %}
+      <canvas id="weekChart" height="80"></canvas>
+    {% else %}
+      <div class="empty">No inactivity recorded yet. The chart fills in as users go idle during the monitoring window.</div>
+    {% endif %}
   </section>
 
   <section class="panel">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div class="panel-head">
       <h2 style="margin:0;">User Activity</h2>
-      <div>
-        <a href="?days=1" class="pill {% if days == 1 %}good{% else %}muted{% endif %}">1 day</a>
-        <a href="?days=7" class="pill {% if days == 7 %}good{% else %}muted{% endif %}">7 days</a>
-        <a href="?days=30" class="pill {% if days == 30 %}good{% else %}muted{% endif %}">30 days</a>
+      <div class="panel-controls">
+        <input type="search" id="userSearch" placeholder="Search name / email…" />
+        <label class="check"><input type="checkbox" id="hideIgnored" checked> Hide ignored</label>
+        <label class="check"><input type="checkbox" id="hideNoData"> Hide users with no data</label>
+        <span class="sep"></span>
+        <a href="?days=1" class="pill {% if days == 1 %}good{% else %}muted{% endif %}">1d</a>
+        <a href="?days=7" class="pill {% if days == 7 %}good{% else %}muted{% endif %}">7d</a>
+        <a href="?days=30" class="pill {% if days == 30 %}good{% else %}muted{% endif %}">30d</a>
       </div>
     </div>
-    <table>
+    <table id="userTable" class="sticky">
       <thead><tr>
         <th>Name</th><th>Email</th><th>Presence</th>
-        <th>Last active</th><th>Events ({{ days }}d)</th><th>Inactive ({{ days }}d)</th>
-        <th>Alerts ({{ days }}d)</th><th></th>
+        <th>Last active</th><th>Events</th><th>Inactive</th>
+        <th>Alerts</th><th></th>
       </tr></thead>
       <tbody>
       {% for u in users %}
-        <tr>
+        {% set s = u['current_state'] %}
+        {% set has_data = u['current_state'] or u['event_count'] %}
+        <tr data-search="{{ (u['display_name'] or '')|lower }} {{ (u['email'] or '')|lower }}"
+            data-ignored="{{ '1' if u['ignored'] else '0' }}"
+            data-hasdata="{{ '1' if has_data else '0' }}">
           <td>
-            <a href="{{ url_for('user_detail', uid=u['id']) }}" style="color:var(--accent); text-decoration:none;">
+            <a href="{{ url_for('user_detail', uid=u['id']) }}" class="link">
               {{ u['display_name'] or '—' }}
             </a>
             {% if u['ignored'] %}<span class="pill muted">ignored</span>{% endif %}
           </td>
           <td>{{ u['email'] or '—' }}</td>
           <td>
-            {% set s = u['current_state'] %}
-            {% if s in ('Available',) %}<span class="pill good">{{ s }}</span>
+            {% if s == 'Available' %}<span class="pill good">{{ s }}</span>
             {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}
               <span class="pill warn">{{ s }}</span>
-            {% else %}<span class="pill bad">{{ s or '—' }}</span>{% endif %}
+            {% elif s in ('Away','BeRightBack') %}<span class="pill bad">{{ s }}</span>
+            {% elif s in ('Offline','OutOfOffice','PresenceUnknown') %}
+              <span class="pill muted">{{ s }}</span>
+            {% else %}<span class="pill muted">no data</span>{% endif %}
           </td>
           <td>{{ u['last_active_ts']|ist }}</td>
           <td>{{ u['event_count'] }}</td>
@@ -86,14 +139,15 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8" style="color:var(--muted)">No users yet — waiting for first poll.</td></tr>
+        <tr><td colspan="8" class="empty">No users yet — waiting for first poll.</td></tr>
       {% endfor %}
       </tbody>
     </table>
+    <div id="userTableEmpty" class="empty" style="display:none;">No users match the current filters.</div>
   </section>
 
   <section class="panel">
-    <h2>Inactivity events (last {{ days }} days)</h2>
+    <h2>Inactivity events (last {{ days }} day{{ 's' if days != 1 else '' }})</h2>
     <table>
       <thead><tr>
         <th>Started</th><th>Ended</th><th>User</th>
@@ -113,33 +167,68 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6" style="color:var(--muted)">No inactivity events in the last 24h.</td></tr>
+        <tr><td colspan="6" class="empty">No inactivity events recorded.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </section>
 </main>
 
+{% if chart_labels %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-  const labels = {{ chart_labels|tojson }};
-  const data = {{ chart_values|tojson }};
-  if (labels.length) {
-    new Chart(document.getElementById("weekChart"), {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{ label: "Minutes inactive (7d)", data,
-                     backgroundColor: "rgba(56,189,248,0.6)" }]
-      },
-      options: {
-        plugins: { legend: { labels: { color: "#e2e8f0" } } },
-        scales: {
-          x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
-          y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } }
-        }
+  new Chart(document.getElementById("weekChart"), {
+    type: "bar",
+    data: {
+      labels: {{ chart_labels|tojson }},
+      datasets: [{ label: "Minutes inactive (7d)",
+                   data: {{ chart_values|tojson }},
+                   backgroundColor: "rgba(56,189,248,0.6)" }]
+    },
+    options: {
+      plugins: { legend: { labels: { color: "#e2e8f0" } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+        y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } }
       }
+    }
+  });
+</script>
+{% endif %}
+
+<script>
+  const search = document.getElementById("userSearch");
+  const hideIgnored = document.getElementById("hideIgnored");
+  const hideNoData = document.getElementById("hideNoData");
+  const rows = Array.from(document.querySelectorAll("#userTable tbody tr[data-search]"));
+  const emptyMsg = document.getElementById("userTableEmpty");
+
+  // Persist filter state across the 2-min auto-refresh.
+  const saved = JSON.parse(localStorage.getItem("fp.filters") || "{}");
+  if (saved.search) search.value = saved.search;
+  if ("hideIgnored" in saved) hideIgnored.checked = saved.hideIgnored;
+  if ("hideNoData" in saved) hideNoData.checked = saved.hideNoData;
+
+  function applyFilters() {
+    const q = search.value.trim().toLowerCase();
+    const hi = hideIgnored.checked;
+    const hn = hideNoData.checked;
+    localStorage.setItem("fp.filters",
+      JSON.stringify({ search: q, hideIgnored: hi, hideNoData: hn }));
+    let visible = 0;
+    rows.forEach(r => {
+      const matchQ = !q || r.dataset.search.includes(q);
+      const matchI = !hi || r.dataset.ignored === "0";
+      const matchN = !hn || r.dataset.hasdata === "1";
+      const show = matchQ && matchI && matchN;
+      r.style.display = show ? "" : "none";
+      if (show) visible++;
     });
+    emptyMsg.style.display = (rows.length && visible === 0) ? "block" : "none";
   }
+  search.addEventListener("input", applyFilters);
+  hideIgnored.addEventListener("change", applyFilters);
+  hideNoData.addEventListener("change", applyFilters);
+  applyFilters();
 </script>
 {% endblock %}

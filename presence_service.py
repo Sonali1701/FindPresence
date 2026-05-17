@@ -102,7 +102,14 @@ def poll_once(client, conn, cfg, threshold):
         return
 
     log.info("Starting poll - inside monitoring window")
-    users = pick_users(client, cfg)
+    
+    try:
+        users = pick_users(client, cfg)
+        log.info("Fetched %d users from Microsoft Graph", len(users))
+    except Exception as e:
+        log.error("Failed to fetch users from Microsoft Graph: %s", e)
+        return
+    
     file_ignore = load_ignore_file(cfg.get("ignore_file"))
 
     # Refresh user rows, apply ignore.txt
@@ -117,11 +124,20 @@ def poll_once(client, conn, cfg, threshold):
     active_ids = [u["id"] for u in users
                   if not rows.get(u["id"]) or not rows[u["id"]]["ignored"]]
 
+    log.info("Active users to poll: %d (ignored: %d)", len(active_ids), len(users) - len(active_ids))
+
     if not active_ids:
         db.log_poll(conn, armed, 0, note="no users to poll")
+        log.info("No active users to poll - skipping")
         return
 
-    presences = client.get_presences(active_ids)
+    try:
+        presences = client.get_presences(active_ids)
+        log.info("Fetched presence for %d users", len(presences))
+    except Exception as e:
+        log.error("Failed to fetch presence data: %s", e)
+        return
+    
     now = time.time()
 
     for uid in active_ids:

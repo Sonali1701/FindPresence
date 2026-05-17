@@ -79,17 +79,29 @@ def run_loop(cfg, stop_event):
     threshold = cfg.get("inactive_threshold_minutes", 10) * 60
     interval = cfg.get("poll_interval_seconds", 60)
 
+    log.info("Poller configured: threshold=%ds, interval=%ds, window=%s-%s IST",
+             threshold, interval, cfg.get("window_start_ist", "18:30"), cfg.get("window_end_ist", "03:30"))
+
+    poll_count = 0
     while not stop_event.is_set():
         try:
+            poll_count += 1
+            log.info("Poll iteration #%d at %s IST", poll_count, now_ist().strftime("%H:%M:%S"))
             poll_once(client, conn, cfg, threshold)
-        except Exception:
-            log.exception("poll loop error")
+        except Exception as e:
+            log.exception("poll loop error: %s", e)
         stop_event.wait(interval)
 
 
 def poll_once(client, conn, cfg, threshold):
     armed = in_window(cfg)
+    
+    if not armed:
+        log.info("Outside monitoring window - skipping poll (current: %s IST, window: %s-%s)",
+                 now_ist().strftime("%H:%M"), cfg.get("window_start_ist", "18:30"), cfg.get("window_end_ist", "03:30"))
+        return
 
+    log.info("Starting poll - inside monitoring window")
     users = pick_users(client, cfg)
     file_ignore = load_ignore_file(cfg.get("ignore_file"))
 

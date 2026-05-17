@@ -107,6 +107,10 @@ def dashboard():
     chart_labels = [r["display_name"] or r["email"] or "?" for r in week_summary[:10]]
     chart_values = [int((r["total_inactive_seconds"] or 0) / 60) for r in week_summary[:10]]
 
+    # Debug logging
+    log.info("Dashboard: %d users in summary, %d events, %d total alerts, %d monitored",
+             len(summary), len(events), total_alerts, monitored)
+
     return render_template(
         "dashboard.html",
         cfg=cfg,

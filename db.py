@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT,
     display_name TEXT,
+    department TEXT,
+    location TEXT,
     ignored INTEGER NOT NULL DEFAULT 0,
     last_active_ts REAL,
     current_state TEXT,
@@ -76,18 +78,22 @@ def init_db(conn):
         # Backfill columns on databases created before these were added.
         _safe_add_column(conn, "poll_log", "success", "INTEGER NOT NULL DEFAULT 1")
         _safe_add_column(conn, "poll_log", "error_text", "TEXT")
+        _safe_add_column(conn, "users", "department", "TEXT")
+        _safe_add_column(conn, "users", "location", "TEXT")
 
 
-def upsert_user(conn, uid, email, name):
+def upsert_user(conn, uid, email, name, department=None, location=None):
     with _lock, conn:
         conn.execute(
-            """INSERT INTO users(id, email, display_name, updated_ts)
-               VALUES(?, ?, ?, ?)
+            """INSERT INTO users(id, email, display_name, department, location, updated_ts)
+               VALUES(?, ?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET
                  email=excluded.email,
                  display_name=excluded.display_name,
+                 department=COALESCE(excluded.department, department),
+                 location=COALESCE(excluded.location, location),
                  updated_ts=excluded.updated_ts""",
-            (uid, email, name, time.time()),
+            (uid, email, name, department, location, time.time()),
         )
 
 

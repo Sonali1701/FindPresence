@@ -1,6 +1,7 @@
 """Background poller. Only runs alerts within the IST monitoring window."""
 import logging
 import os
+import json
 import time
 from datetime import datetime, time as dtime, timezone, timedelta
 
@@ -23,9 +24,26 @@ def _parse_hhmm(s):
 
 
 def in_window(cfg, now=None):
+    """Check global monitoring window (for backwards compatibility)."""
     now = now or now_ist()
     start = _parse_hhmm(cfg.get("window_start_ist", "18:30"))
     end = _parse_hhmm(cfg.get("window_end_ist", "03:30"))
+    t = now.time()
+    if start <= end:
+        return start <= t <= end
+    return t >= start or t <= end
+
+
+def user_in_window(emp_data, now=None):
+    """Check if a user is currently in their monitoring window based on employees.json."""
+    if not emp_data:
+        return False
+    now = now or now_ist()
+    try:
+        start = _parse_hhmm(emp_data.get("window_start", "18:30"))
+        end = _parse_hhmm(emp_data.get("window_end", "03:30"))
+    except (ValueError, KeyError):
+        return False
     t = now.time()
     if start <= end:
         return start <= t <= end
@@ -42,6 +60,22 @@ def load_ignore_file(path):
             if line and not line.startswith("#"):
                 out.add(line)
     return out
+
+
+def load_employees_config(path=None):
+    """Load employees.json with department, location, and per-user time windows."""
+    if not path:
+        path = os.path.join(os.path.dirname(__file__), "employees.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        # Map email -> {department, location, window_start, window_end}
+        return {emp["email"].lower(): emp for emp in data.get("employees", [])}
+    except Exception as e:
+        log.warning("Failed to load employees.json: %s", e)
+        return {}
 
 
 def user_email(u):
@@ -171,26 +205,30 @@ def run_loop(cfg, stop_event):
     client = GraphClient(cfg["tenant_id"], cfg["client_id"], cfg["client_secret"])
     conn = db.connect(cfg["db_path"])
     db.init_db(conn)
+    emp_config = load_employees_config()
 
     threshold = cfg.get("inactive_threshold_minutes", 10) * 60
     interval = cfg.get("poll_interval_seconds", 60)
 
-    log.info("Poller configured: threshold=%ds, interval=%ds, window=%s-%s IST",
-             threshold, interval, cfg.get("window_start_ist", "18:30"), cfg.get("window_end_ist", "03:30"))
+    log.info("Poller configured: threshold=%ds, interval=%ds, employees=%d",
+             threshold, interval, len(emp_config))
 
     poll_count = 0
     while not stop_event.is_set():
         try:
             poll_count += 1
             log.info("Poll iteration #%d at %s IST", poll_count, now_ist().strftime("%H:%M:%S"))
-            poll_once(client, conn, cfg, threshold)
+            poll_once(client, conn, cfg, threshold, emp_config)
         except Exception as e:
             log.exception("poll loop error: %s", e)
         stop_event.wait(interval)
 
 
-def poll_once(client, conn, cfg, threshold):
-    armed = in_window(cfg)
+def poll_once(client, conn, cfg, threshold, emp_config=None):
+    if emp_config is None:
+        emp_config = {}
+    # Global armed state is not used when we have per-user windows
+    # Check per-user armed state in the loop below
 
     # We still refresh the user list outside the window so the dashboard
     # shows the roster — but we only fetch presence + alert while armed.
@@ -206,20 +244,19 @@ def poll_once(client, conn, cfg, threshold):
     file_ignore = load_ignore_file(cfg.get("ignore_file"))
     for u in users:
         email = user_email(u)
-        db.upsert_user(conn, u["id"], email, u.get("displayName", ""))
+        emp_data = emp_config.get(email.lower())
+        department = emp_data.get("department") if emp_data else None
+        location = emp_data.get("location") if emp_data else None
+        db.upsert_user(conn, u["id"], email, u.get("displayName", ""), department, location)
         if email in file_ignore:
             db.set_ignored(conn, u["id"], True)
-
-    if not armed:
-        db.log_poll(conn, armed, 0, note="outside window")
-        return
 
     rows = {r["id"]: r for r in db.all_users(conn)}
     active_ids = [u["id"] for u in users
                   if not rows.get(u["id"]) or not rows[u["id"]]["ignored"]]
 
     if not active_ids:
-        db.log_poll(conn, armed, 0, note="no users to poll")
+        db.log_poll(conn, False, 0, note="no users to poll")
         return
 
     try:
@@ -277,7 +314,11 @@ def poll_once(client, conn, cfg, threshold):
                 already_alerted = bool(user_row["streak_alerted"])
 
             inactive_for = now - streak_started
-            if armed and not already_alerted and inactive_for >= threshold:
+            # Check per-user armed state
+            emp_data = emp_config.get(email.lower())
+            user_armed = user_in_window(emp_data) if emp_data else in_window(cfg)
+
+            if user_armed and not already_alerted and inactive_for >= threshold:
                 minutes = int(inactive_for // 60)
                 to_alert.append({
                     "uid": uid,
@@ -289,7 +330,7 @@ def poll_once(client, conn, cfg, threshold):
                 })
 
     # Send ONE batched report email for all employees who crossed threshold this poll.
-    if armed and to_alert:
+    if to_alert:
         n = len(to_alert)
         names = ", ".join(item["name"] for item in to_alert[:3])
         if n > 3:
@@ -312,4 +353,4 @@ def poll_once(client, conn, cfg, threshold):
         except Exception as e:
             log.error("batch send_mail failed: %s", e)
 
-    db.log_poll(conn, armed, len(active_ids))
+    db.log_poll(conn, True, len(active_ids))  # Always successful poll if we get here

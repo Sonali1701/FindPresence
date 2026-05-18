@@ -83,8 +83,8 @@
     </span>
   </div>
   <div class="meta">
-    <span>Window: {{ window }}</span>
-    <span>Alert: {{ threshold_min }} min</span>
+    <span>Alert threshold: {{ threshold_min }} min</span>
+    <span>Per-location windows configured</span>
     <span>{{ now_ist_str }}</span>
     <a href="{{ url_for('logout') }}">Sign out</a>
   </div>
@@ -158,6 +158,7 @@
     <table>
       <thead><tr>
         <th>Employee</th>
+        <th>Dept</th>
         <th>State</th>
         <th>Idle for</th>
         <th>Went idle at</th>
@@ -169,6 +170,16 @@
             <a href="{{ url_for('user_detail', uid=u['id']) }}" class="link">
               {{ u['display_name'] or u['email'] or '—' }}
             </a>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;align-items:center">
+              {% if u['department'] %}
+                <span class="pill accent" style="font-size:10px">{{ u['department'] }}</span>
+              {% endif %}
+              {% if u['location'] %}
+                <span class="pill muted" style="font-size:10px">{{ u['location'] }}</span>
+              {% endif %}
+            </div>
           </td>
           <td><span class="pill bad">{{ u['current_state'] or '—' }}</span></td>
           <td><span class="dur-big">{{ u['streak_seconds']|dur }}</span></td>
@@ -210,6 +221,7 @@
       <thead><tr>
         <th>#</th>
         <th>Employee</th>
+        <th>Dept</th>
         <th>Times idle {{ threshold_min }}+ min</th>
         <th>Frequency</th>
         <th>Total idle time</th>
@@ -229,6 +241,16 @@
               {{ o['display_name'] or o['email'] or '—' }}
             </a>
             <div style="font-size:11px;color:var(--muted);margin-top:1px">{{ o['email'] or '' }}</div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;align-items:center">
+              {% if o['department'] %}
+                <span class="pill accent" style="font-size:10px">{{ o['department'] }}</span>
+              {% endif %}
+              {% if o['location'] %}
+                <span class="pill muted" style="font-size:10px">{{ o['location'] }}</span>
+              {% endif %}
+            </div>
           </td>
           <td>
             <span class="freq-badge {{ badge_cls }}">{{ o['times_alerted'] }}&times;</span>
@@ -296,12 +318,13 @@
     <table id="userTable" class="sticky">
       <thead><tr>
         <th>Employee</th>
+        <th style="width:80px">Dept</th>
         <th>Presence</th>
         <th>Last active</th>
         <th>Idle events</th>
         <th>Times 10+ min</th>
         <th>Total idle</th>
-        <th></th>
+        <th style="width:100px"></th>
       </tr></thead>
       <tbody>
       {% for u in users %}
@@ -323,6 +346,16 @@
               </div>
               {% if u['ignored'] %}<span class="pill muted" style="font-size:10px">ignored</span>{% endif %}
               {% if u['in_inactive_streak'] %}<span class="streak-pill pulse">idle now</span>{% endif %}
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+              {% if u['department'] %}
+                <span class="pill accent" style="font-size:10px">{{ u['department'] }}</span>
+              {% endif %}
+              {% if u['location'] %}
+                <span class="pill muted" style="font-size:10px">{{ u['location'] }}</span>
+              {% endif %}
             </div>
           </td>
           <td>
@@ -355,7 +388,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="7" class="empty">No employees yet — waiting for first poll.</td></tr>
+        <tr><td colspan="8" class="empty">No employees yet — waiting for first poll.</td></tr>
       {% endfor %}
       </tbody>
     </table>

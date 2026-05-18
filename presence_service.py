@@ -56,19 +56,115 @@ def pick_users(client, cfg):
     return users
 
 
-def build_alert_html(name, email, last_active_iso, current_state, minutes):
-    last_active = "never observed active in this session" if not last_active_iso \
-        else last_active_iso
-    return (
-        f"<p><b>{name}</b> ({email}) has been inactive on Teams "
-        f"for <b>{minutes} minutes</b>.</p>"
-        f"<ul>"
-        f"<li>Current presence: <b>{current_state}</b></li>"
-        f"<li>Last seen active: {last_active}</li>"
-        f"<li>Detected at: {now_ist().strftime('%Y-%m-%d %H:%M IST')}</li>"
-        f"</ul>"
-        f"<p><i>FindPresence monitor</i></p>"
-    )
+def _fmt_ist_human(ts):
+    if not ts:
+        return "Never seen active"
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc) + IST_OFFSET
+    return dt.strftime("%d %b %Y, %H:%M IST")
+
+
+def build_batch_alert_html(to_alert):
+    """Build one HTML email summarising all employees who crossed the threshold."""
+    n = len(to_alert)
+    now_str = now_ist().strftime("%d %b %Y, %H:%M IST")
+    employee_word = "employees" if n != 1 else "employee"
+
+    rows_html = ""
+    for item in to_alert:
+        state_color = "#ef4444" if item["state"] in ("Away", "Offline", "BeRightBack",
+                                                      "OutOfOffice", "PresenceUnknown") \
+                      else "#f59e0b"
+        rows_html += (
+            f'<tr style="border-bottom:1px solid #e5e7eb">'
+            f'<td style="padding:10px 14px;font-weight:600">{item["name"]}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280">{item["email"]}</td>'
+            f'<td style="padding:10px 14px;color:{state_color};font-weight:500">{item["state"]}</td>'
+            f'<td style="padding:10px 14px;font-weight:700;color:#ef4444">{item["minutes"]} min</td>'
+            f'<td style="padding:10px 14px;color:#6b7280">{item["last_active"]}</td>'
+            f'</tr>'
+        )
+
+    return f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:system-ui,-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="background:#ffffff;border-radius:10px;overflow:hidden;
+                  border:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.07)">
+
+      <!-- Header -->
+      <tr>
+        <td style="background:#111827;padding:20px 28px">
+          <span style="color:#38bdf8;font-size:13px;font-weight:700;letter-spacing:.06em;
+                       text-transform:uppercase">FindPresence</span>
+          <span style="color:#ef4444;font-size:13px;font-weight:700;margin-left:12px">
+            &bull; Inactivity Report
+          </span>
+        </td>
+      </tr>
+
+      <!-- Summary -->
+      <tr>
+        <td style="padding:24px 28px 16px">
+          <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827">
+            {n} {employee_word} idle for 10+ minutes
+          </p>
+          <p style="margin:0;font-size:13px;color:#6b7280">
+            Detected at <b>{now_str}</b> during the monitoring window.
+            The following {employee_word} {'have' if n != 1 else 'has'} been inactive on
+            Microsoft Teams beyond the alert threshold.
+          </p>
+        </td>
+      </tr>
+
+      <!-- Table -->
+      <tr>
+        <td style="padding:0 28px 24px">
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+            <thead>
+              <tr style="background:#f3f4f6">
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Name</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Email</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">State</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Idle for</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Last active</th>
+              </tr>
+            </thead>
+            <tbody>{rows_html}</tbody>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:14px 28px">
+          <p style="margin:0;font-size:11px;color:#9ca3af">
+            Generated by <b>FindPresence</b> at {now_str}.
+            Open the dashboard to see full details and history.
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
+"""
 
 
 def run_loop(cfg, stop_event):
@@ -136,6 +232,7 @@ def poll_once(client, conn, cfg, threshold):
         return
 
     now = time.time()
+    to_alert = []  # collect employees who crossed threshold this poll
 
     for uid in active_ids:
         user_row = rows.get(uid)
@@ -182,23 +279,37 @@ def poll_once(client, conn, cfg, threshold):
             inactive_for = now - streak_started
             if armed and not already_alerted and inactive_for >= threshold:
                 minutes = int(inactive_for // 60)
-                last_active_iso = None
-                if user_row["last_active_ts"]:
-                    last_active_iso = datetime.fromtimestamp(
-                        user_row["last_active_ts"], tz=timezone.utc
-                    ).isoformat()
-                try:
-                    client.send_mail(
-                        sender=cfg["notify_from"],
-                        to=cfg["notify_to"],
-                        subject=f"[Teams] {name} inactive {minutes}m",
-                        body_html=build_alert_html(
-                            name, email, last_active_iso, availability, minutes),
-                    )
-                    db.mark_alerted(conn, uid, now)
-                    db.set_user_state(conn, uid, streak_alerted=1)
-                    log.info("ALERT %s (%s) inactive %dm", name, email, minutes)
-                except Exception as e:
-                    log.error("send_mail failed for %s: %s", email, e)
+                to_alert.append({
+                    "uid": uid,
+                    "name": name or email or uid,
+                    "email": email or "—",
+                    "state": availability,
+                    "minutes": minutes,
+                    "last_active": _fmt_ist_human(user_row["last_active_ts"]),
+                })
+
+    # Send ONE batched report email for all employees who crossed threshold this poll.
+    if armed and to_alert:
+        n = len(to_alert)
+        names = ", ".join(item["name"] for item in to_alert[:3])
+        if n > 3:
+            names += f" +{n - 3} more"
+        subject = (
+            f"[FindPresence] {n} employee{'s' if n != 1 else ''} idle 10+ min"
+            f" — {now_ist().strftime('%d %b, %H:%M IST')}"
+        )
+        try:
+            client.send_mail(
+                sender=cfg["notify_from"],
+                to=cfg["notify_to"],
+                subject=subject,
+                body_html=build_batch_alert_html(to_alert),
+            )
+            for item in to_alert:
+                db.mark_alerted(conn, item["uid"], now)
+                db.set_user_state(conn, item["uid"], streak_alerted=1)
+            log.info("ALERT batch email sent — %d employees: %s", n, names)
+        except Exception as e:
+            log.error("batch send_mail failed: %s", e)
 
     db.log_poll(conn, armed, len(active_ids))

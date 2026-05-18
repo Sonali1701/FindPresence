@@ -3,220 +3,349 @@
 {% block head %}
 <meta http-equiv="refresh" content="60">
 <style>
-  /* ── Currently Inactive banner ── */
-  .inactive-now { background: #1e1e2e; border: 1px solid #f43f5e; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; }
-  .inactive-now h2 { color: #f43f5e; margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 8px; }
-  .inactive-now h2 .dot { width: 10px; height: 10px; border-radius: 50%; background: #f43f5e; animation: pulse 1.4s infinite; display: inline-block; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-  .inactive-now .empty-ok { color: #4ade80; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  /* ── Alert box when people are inactive NOW ── */
+  .alert-box {
+    border: 1px solid rgba(244,63,94,.45);
+    border-left: 4px solid var(--bad);
+    background: rgba(244,63,94,.05);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .alert-box-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  .alert-box-header .live-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--bad); animation: pulse 1.4s infinite; flex-shrink: 0;
+  }
+  .alert-box-header h2 {
+    margin: 0; font-size: 13px; font-weight: 700; color: var(--bad);
+    text-transform: uppercase; letter-spacing: .07em;
+  }
+  .alert-box-header .count-pill {
+    background: rgba(244,63,94,.2); color: var(--bad);
+    border: 1px solid rgba(244,63,94,.4);
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+    padding: 1px 8px;
+  }
 
-  /* ── Offenders table ── */
-  .offenders-table td .badge { display: inline-block; background: #f43f5e22; color: #f43f5e; border: 1px solid #f43f5e55; border-radius: 12px; padding: 2px 10px; font-size: 13px; font-weight: 600; min-width: 28px; text-align: center; }
-  .offenders-table td .badge.few { background: #f59e0b22; color: #f59e0b; border-color: #f59e0b55; }
-  .offenders-table td .badge.one { background: #38bdf822; color: #38bdf8; border-color: #38bdf855; }
+  /* ── All-clear box ── */
+  .allclear-box {
+    border: 1px solid rgba(34,197,94,.3);
+    border-left: 4px solid var(--good);
+    background: rgba(34,197,94,.04);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .allclear-box .check-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(34,197,94,.15); color: var(--good);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+  }
+  .allclear-box .allclear-text { font-weight: 600; font-size: 14px; color: var(--good); }
+  .allclear-box .allclear-sub  { font-size: 12px; color: var(--muted); margin-top: 1px; }
 
-  /* ── Two-column chart row ── */
-  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 900px) { .charts-row { grid-template-columns: 1fr; } }
+  /* ── Inactive now table ── */
+  .inactive-row td { background: rgba(244,63,94,.04); }
+  .dur-big { font-size: 15px; font-weight: 700; color: var(--bad); }
 
-  /* ── Streak pill ── */
-  .streak { background: #f43f5e22; color: #f43f5e; border: 1px solid #f43f5e55; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+  /* ── Offender row ── */
+  .name-with-rank { display: flex; align-items: center; gap: 8px; }
+  .offender-bar-cell { display: flex; align-items: center; gap: 8px; }
+
+  /* ── Section divider label ── */
+  .section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .09em; color: var(--dim);
+    margin: 28px 0 12px; padding-left: 2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Chart panels ── */
+  .chart-panel h2 { margin-bottom: 4px; }
+  .chart-sub { font-size: 11px; color: var(--dim); margin-bottom: 14px; }
 </style>
 {% endblock %}
 {% block body %}
+
+<!-- ── Header ── -->
 <header>
-  <div>
+  <div class="brand">
+    <div class="brand-dot{% if armed %} pulse{% endif %}"></div>
     <h1>FindPresence</h1>
-    <div class="meta">Window: {{ window }} · Alert threshold: {{ threshold_min }} min · Notifying {{ notify_to }}</div>
+    <span class="pill {% if armed %}good{% else %}muted{% endif %}" style="font-size:10px;margin-left:4px">
+      {% if armed %}ARMED{% else %}OUTSIDE WINDOW{% endif %}
+    </span>
   </div>
   <div class="meta">
-    {{ now_ist_str }}
-    {% if armed %}
-      <span class="pill good">ARMED</span>
-    {% else %}
-      <span class="pill muted">OUTSIDE WINDOW</span>
-    {% endif %}
+    <span>Window: {{ window }}</span>
+    <span>Alert: {{ threshold_min }} min</span>
+    <span>{{ now_ist_str }}</span>
     <a href="{{ url_for('logout') }}">Sign out</a>
   </div>
 </header>
 
 <main>
-  <!-- Poll health banner -->
+
+  <!-- ── Poll health banner ── -->
   <section class="banner banner-{{ status }}">
     <div class="banner-icon">
-      {% if status == 'ok' %}✓{% elif status == 'wait' %}…{% elif status == 'stale' %}!{% else %}✗{% endif %}
+      {% if status == 'ok' %}&#10003;{% elif status == 'wait' %}&hellip;{% elif status == 'stale' %}!{% else %}&#10007;{% endif %}
     </div>
     <div class="banner-body">
       <div class="banner-title">
-        {% if status == 'ok' %}Polling healthy{% elif status == 'wait' %}Initializing{% elif status == 'stale' %}Polling stalled{% else %}Polling error{% endif %}
+        {% if status == 'ok' %}Polling healthy — Teams presence data is up to date
+        {% elif status == 'wait' %}Initializing — waiting for first poll to complete
+        {% elif status == 'stale' %}Polling stalled — no recent data
+        {% else %}Polling error — presence data may be stale{% endif %}
       </div>
       <div class="banner-text">{{ status_msg }}</div>
       {% if latest_poll %}
       <div class="banner-meta">
-        Last poll: {{ latest_poll['ts']|ist }} · {{ latest_poll['users_polled'] }} users
-        {% if latest_poll['note'] %}· {{ latest_poll['note'] }}{% endif %}
+        Last poll: {{ latest_poll['ts']|ist }} &nbsp;&middot;&nbsp; {{ latest_poll['users_polled'] }} users polled
+        {% if latest_poll['note'] %}&nbsp;&middot;&nbsp; {{ latest_poll['note'] }}{% endif %}
       </div>
       {% endif %}
     </div>
   </section>
 
+  <!-- ── SECTION: Right Now ── -->
+  <div class="section-label">Live status</div>
+
   <!-- Metric cards -->
   <section class="cards">
     <div class="card">
-      <div class="label">Monitored</div>
+      <div class="label">Monitored employees</div>
       <div class="value">{{ monitored }}</div>
-      <div class="sublabel">{{ users_with_data }} with live presence</div>
+      <div class="sublabel">{{ users_with_data }} with live Teams data</div>
     </div>
     <div class="card {% if currently_inactive_count %}bad{% else %}good{% endif %}">
       <div class="label">Inactive right now</div>
       <div class="value">{{ currently_inactive_count }}</div>
-      <div class="sublabel">{% if currently_inactive_count %}employees idle{% else %}all active{% endif %}</div>
+      <div class="sublabel">
+        {% if currently_inactive_count %}
+          {{ currently_inactive_count }} employee{{ 's' if currently_inactive_count != 1 }} currently idle
+        {% else %}
+          All employees are active
+        {% endif %}
+      </div>
     </div>
     <div class="card {% if total_alerts %}bad{% else %}good{% endif %}">
-      <div class="label">10+ min alerts ({{ days }}d)</div>
+      <div class="label">10+ min alerts &mdash; last {{ days }}d</div>
       <div class="value">{{ total_alerts }}</div>
-      <div class="sublabel">{{ alerted_users|length }} employees affected</div>
+      <div class="sublabel">{{ alerted_users|length }} employee{{ 's' if alerted_users|length != 1 }} triggered threshold</div>
     </div>
     <div class="card warn">
-      <div class="label">Total inactive ({{ days }}d)</div>
+      <div class="label">Total idle time &mdash; last {{ days }}d</div>
       <div class="value">{{ total_inactive|dur }}</div>
       <div class="sublabel">across all employees</div>
     </div>
   </section>
 
-  <!-- Currently Inactive Now -->
-  <section class="inactive-now">
-    <h2><span class="dot"></span> Currently Inactive</h2>
-    {% if currently_inactive %}
-    <table class="offenders-table">
+  <!-- Currently inactive NOW -->
+  {% if currently_inactive %}
+  <section class="alert-box">
+    <div class="alert-box-header">
+      <span class="live-dot"></span>
+      <h2>Inactive right now</h2>
+      <span class="count-pill">{{ currently_inactive_count }}</span>
+    </div>
+    <table>
       <thead><tr>
-        <th>Name</th><th>Email</th><th>State</th><th>Inactive for</th>
+        <th>Employee</th>
+        <th>State</th>
+        <th>Idle for</th>
+        <th>Went idle at</th>
       </tr></thead>
       <tbody>
       {% for u in currently_inactive %}
-        <tr>
-          <td><a href="{{ url_for('user_detail', uid=u['id']) }}" class="link">{{ u['display_name'] or '—' }}</a></td>
-          <td>{{ u['email'] or '—' }}</td>
+        <tr class="inactive-row">
+          <td>
+            <a href="{{ url_for('user_detail', uid=u['id']) }}" class="link">
+              {{ u['display_name'] or u['email'] or '—' }}
+            </a>
+          </td>
           <td><span class="pill bad">{{ u['current_state'] or '—' }}</span></td>
-          <td><span class="streak">{{ u['streak_seconds']|dur }}</span></td>
+          <td><span class="dur-big">{{ u['streak_seconds']|dur }}</span></td>
+          <td style="color:var(--muted)">{{ u['streak_started_ts']|ist }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <div class="empty-ok">✓ All monitored employees are currently active.</div>
-    {% endif %}
   </section>
+  {% else %}
+  <section class="allclear-box">
+    <div class="check-icon">&#10003;</div>
+    <div>
+      <div class="allclear-text">All employees are currently active</div>
+      <div class="allclear-sub">No one has been idle since the last poll.</div>
+    </div>
+  </section>
+  {% endif %}
 
-  <!-- Repeat Offenders Table -->
+  <!-- ── SECTION: Who's slacking most? ── -->
+  <div class="section-label">
+    Inactivity trends &mdash; last
+    <a href="?days=1" class="tab-pill pill {% if days == 1 %}accent{% else %}muted{% endif %}">1d</a>
+    <a href="?days=7" class="tab-pill pill {% if days == 7 %}accent{% else %}muted{% endif %}">7d</a>
+    <a href="?days=30" class="tab-pill pill {% if days == 30 %}accent{% else %}muted{% endif %}">30d</a>
+  </div>
+
+  <!-- Repeat offenders table -->
   <section class="panel">
     <div class="panel-head">
-      <h2 style="margin:0;">Repeat Offenders — 10+ min inactivity count</h2>
-      <div class="panel-controls">
-        <a href="?days=1" class="pill {% if days == 1 %}good{% else %}muted{% endif %}">1d</a>
-        <a href="?days=7" class="pill {% if days == 7 %}good{% else %}muted{% endif %}">7d</a>
-        <a href="?days=30" class="pill {% if days == 30 %}good{% else %}muted{% endif %}">30d</a>
+      <div class="panel-head-left">
+        <div class="panel-title">Repeat offenders</div>
+        <div class="panel-subtitle">Employees ranked by how many times they were idle for {{ threshold_min }}+ minutes</div>
       </div>
     </div>
     {% if offenders %}
-    <table class="offenders-table">
+    {% set max_count = offenders[0]['times_alerted'] %}
+    <table>
       <thead><tr>
-        <th>Name</th><th>Email</th>
-        <th>Times inactive 10+ min</th>
-        <th>Total inactive time</th>
-        <th>Last inactive</th>
+        <th>#</th>
+        <th>Employee</th>
+        <th>Times idle {{ threshold_min }}+ min</th>
+        <th>Frequency</th>
+        <th>Total idle time</th>
+        <th>Last idle</th>
       </tr></thead>
       <tbody>
       {% for o in offenders %}
-        {% set cnt = o['times_alerted'] %}
+        {% set i = loop.index %}
+        {% set pct = (o['times_alerted'] / max_count * 100) | int %}
+        {% set badge_cls = 'high' if o['times_alerted'] >= 5 else ('med' if o['times_alerted'] >= 3 else 'low') %}
         <tr>
-          <td><a href="{{ url_for('user_detail', uid=o['id']) }}" class="link">{{ o['display_name'] or '—' }}</a></td>
-          <td>{{ o['email'] or '—' }}</td>
           <td>
-            <span class="badge {% if cnt >= 5 %}{% elif cnt >= 3 %}few{% else %}one{% endif %}">
-              {{ cnt }}x
-            </span>
+            <span class="rank {% if i == 1 %}r1{% elif i == 2 %}r2{% elif i == 3 %}r3{% endif %}">{{ i }}</span>
+          </td>
+          <td>
+            <a href="{{ url_for('user_detail', uid=o['id']) }}" class="link">
+              {{ o['display_name'] or o['email'] or '—' }}
+            </a>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">{{ o['email'] or '' }}</div>
+          </td>
+          <td>
+            <span class="freq-badge {{ badge_cls }}">{{ o['times_alerted'] }}&times;</span>
+          </td>
+          <td style="width:160px">
+            <div class="offender-bar-cell">
+              <div class="progress-wrap" style="flex:1">
+                <div class="progress-bar {{ 'bad' if pct > 60 else ('warn' if pct > 30 else 'good') }}"
+                     style="width:{{ pct }}%"></div>
+              </div>
+              <span style="font-size:11px;color:var(--muted);width:32px;text-align:right">{{ pct }}%</span>
+            </div>
           </td>
           <td>{{ o['total_inactive_seconds']|dur }}</td>
-          <td>{{ o['last_inactive_ts']|ist }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ o['last_inactive_ts']|ist }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
     {% else %}
-    <div class="empty">No employee has triggered the {{ threshold_min }}-minute alert threshold in the selected period.</div>
+    <div class="empty">
+      No employee has triggered the {{ threshold_min }}-minute threshold in the last {{ days }} day{{ 's' if days != 1 }}.
+    </div>
     {% endif %}
   </section>
 
   <!-- Charts row -->
-  <div class="charts-row">
-    <section class="panel">
-      <h2>Times inactive 10+ min ({{ days }}d)</h2>
+  <div class="two-col">
+    <section class="panel chart-panel">
+      <h2>Times idle 10+ min per person</h2>
+      <div class="chart-sub">How many times each employee triggered an alert in the selected period</div>
       {% if freq_labels %}
-        <canvas id="freqChart" height="140"></canvas>
+        <canvas id="freqChart" height="160"></canvas>
       {% else %}
-        <div class="empty">No alerts triggered yet in this period.</div>
+        <div class="empty">No alerts in this period.</div>
       {% endif %}
     </section>
-    <section class="panel">
-      <h2>Total inactive minutes — last 7 days</h2>
+    <section class="panel chart-panel">
+      <h2>Total idle minutes &mdash; last 7 days</h2>
+      <div class="chart-sub">Cumulative idle time per employee over the past week</div>
       {% if chart_labels %}
-        <canvas id="weekChart" height="140"></canvas>
+        <canvas id="weekChart" height="160"></canvas>
       {% else %}
         <div class="empty">No inactivity recorded yet.</div>
       {% endif %}
     </section>
   </div>
 
-  <!-- Full user activity table -->
+  <!-- ── SECTION: All employees ── -->
+  <div class="section-label">All employees</div>
+
   <section class="panel">
     <div class="panel-head">
-      <h2 style="margin:0;">All Employees</h2>
+      <div class="panel-head-left">
+        <div class="panel-title">Employee overview</div>
+        <div class="panel-subtitle">Full roster with presence state and inactivity summary</div>
+      </div>
       <div class="panel-controls">
-        <input type="search" id="userSearch" placeholder="Search name / email…" />
+        <input type="search" id="userSearch" placeholder="Search name or email&hellip;" />
         <label class="check"><input type="checkbox" id="hideIgnored" checked> Hide ignored</label>
-        <label class="check"><input type="checkbox" id="hideNoData"> Hide no-data</label>
+        <label class="check"><input type="checkbox" id="hideNoData"> Hide no data</label>
         <label class="check"><input type="checkbox" id="alertedOnly"> Alerted only</label>
-        <span class="sep"></span>
-        <a href="?days=1" class="pill {% if days == 1 %}good{% else %}muted{% endif %}">1d</a>
-        <a href="?days=7" class="pill {% if days == 7 %}good{% else %}muted{% endif %}">7d</a>
-        <a href="?days=30" class="pill {% if days == 30 %}good{% else %}muted{% endif %}">30d</a>
       </div>
     </div>
     <table id="userTable" class="sticky">
       <thead><tr>
-        <th>Name</th><th>Presence</th><th>Last active</th>
-        <th>Events</th><th>Times 10+ min</th><th>Total inactive</th><th></th>
+        <th>Employee</th>
+        <th>Presence</th>
+        <th>Last active</th>
+        <th>Idle events</th>
+        <th>Times 10+ min</th>
+        <th>Total idle</th>
+        <th></th>
       </tr></thead>
       <tbody>
       {% for u in users %}
         {% set s = u['current_state'] %}
         {% set has_data = u['current_state'] or u['event_count'] %}
         {% set alerted = u['alert_count'] > 0 %}
+        {% set badge_cls = 'high' if u['alert_count'] >= 5 else ('med' if u['alert_count'] >= 3 else 'low') %}
         <tr data-search="{{ (u['display_name'] or '')|lower }} {{ (u['email'] or '')|lower }}"
             data-ignored="{{ '1' if u['ignored'] else '0' }}"
             data-hasdata="{{ '1' if has_data else '0' }}"
             data-alerted="{{ '1' if alerted else '0' }}">
           <td>
-            <a href="{{ url_for('user_detail', uid=u['id']) }}" class="link">{{ u['display_name'] or '—' }}</a>
-            {% if u['ignored'] %}<span class="pill muted">ignored</span>{% endif %}
-            {% if u['in_inactive_streak'] %}<span class="streak">inactive now</span>{% endif %}
+            <div class="name-cell">
+              <div>
+                <a href="{{ url_for('user_detail', uid=u['id']) }}" class="link">
+                  {{ u['display_name'] or '—' }}
+                </a>
+                <div style="font-size:11px;color:var(--muted)">{{ u['email'] or '' }}</div>
+              </div>
+              {% if u['ignored'] %}<span class="pill muted" style="font-size:10px">ignored</span>{% endif %}
+              {% if u['in_inactive_streak'] %}<span class="streak-pill pulse">idle now</span>{% endif %}
+            </div>
           </td>
           <td>
-            {% if s == 'Available' %}<span class="pill good">{{ s }}</span>
-            {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}<span class="pill warn">{{ s }}</span>
-            {% elif s in ('Away','BeRightBack') %}<span class="pill bad">{{ s }}</span>
-            {% elif s in ('Offline','OutOfOffice','PresenceUnknown') %}<span class="pill muted">{{ s }}</span>
-            {% else %}<span class="pill muted">no data</span>{% endif %}
+            {% if s == 'Available' %}
+              <span class="pill good">{{ s }}</span>
+            {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}
+              <span class="pill warn">{{ s }}</span>
+            {% elif s in ('Away','BeRightBack') %}
+              <span class="pill bad">{{ s }}</span>
+            {% elif s in ('Offline','OutOfOffice','PresenceUnknown') %}
+              <span class="pill muted">{{ s }}</span>
+            {% else %}
+              <span class="pill muted">no data</span>
+            {% endif %}
           </td>
-          <td>{{ u['last_active_ts']|ist }}</td>
-          <td>{{ u['event_count'] }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ u['last_active_ts']|ist }}</td>
+          <td style="color:var(--muted)">{{ u['event_count'] or '—' }}</td>
           <td>
             {% if u['alert_count'] %}
-              <span class="badge {% if u['alert_count'] >= 5 %}{% elif u['alert_count'] >= 3 %}few{% else %}one{% endif %}">
-                {{ u['alert_count'] }}x
-              </span>
-            {% else %}—{% endif %}
+              <span class="freq-badge {{ badge_cls }}">{{ u['alert_count'] }}&times;</span>
+            {% else %}
+              <span style="color:var(--dim)">—</span>
+            {% endif %}
           </td>
           <td>{{ u['total_inactive_seconds']|dur }}</td>
           <td>
@@ -226,65 +355,110 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="7" class="empty">No users yet — waiting for first poll.</td></tr>
+        <tr><td colspan="7" class="empty">No employees yet — waiting for first poll.</td></tr>
       {% endfor %}
       </tbody>
     </table>
-    <div id="userTableEmpty" class="empty" style="display:none;">No users match the current filters.</div>
+    <div id="userTableEmpty" class="empty" style="display:none">No employees match the current filters.</div>
   </section>
 
-  <!-- Recent inactivity events -->
+  <!-- ── SECTION: Recent events ── -->
+  <div class="section-label">Recent activity log</div>
+
   <section class="panel">
-    <h2>Recent inactivity events (last {{ days }} day{{ 's' if days != 1 else '' }})</h2>
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <div class="panel-title">Inactivity events</div>
+        <div class="panel-subtitle">Last {{ days }} day{{ 's' if days != 1 }} &mdash; most recent first</div>
+      </div>
+    </div>
     <table>
       <thead><tr>
-        <th>User</th><th>Started</th><th>Ended</th><th>Duration</th><th>State</th><th>Alerted</th>
+        <th>Employee</th>
+        <th>Started</th>
+        <th>Ended</th>
+        <th>Duration</th>
+        <th>State</th>
+        <th>Alert sent</th>
       </tr></thead>
       <tbody>
       {% for e in events %}
         <tr>
-          <td>{{ e['display_name'] or e['email'] }}</td>
-          <td>{{ e['started_ts']|ist }}</td>
-          <td>{{ e['ended_ts']|ist }}</td>
-          <td>{{ e['duration_seconds']|dur }}</td>
-          <td>{{ e['state_during'] }}</td>
           <td>
-            {% if e['alerted'] %}<span class="pill bad">yes</span>
-            {% else %}<span class="pill muted">no</span>{% endif %}
+            <span style="font-weight:500">{{ e['display_name'] or e['email'] or '—' }}</span>
+          </td>
+          <td style="color:var(--muted);font-size:12px">{{ e['started_ts']|ist }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ e['ended_ts']|ist }}</td>
+          <td>
+            {% if e['duration_seconds'] %}
+              <span class="{% if (e['duration_seconds'] or 0) > 600 %}streak-pill{% else %}pill muted{% endif %}">
+                {{ e['duration_seconds']|dur }}
+              </span>
+            {% else %}
+              <span class="streak-pill pulse">ongoing</span>
+            {% endif %}
+          </td>
+          <td><span class="pill muted">{{ e['state_during'] or '—' }}</span></td>
+          <td>
+            {% if e['alerted'] %}
+              <span class="pill bad">yes</span>
+            {% else %}
+              <span style="color:var(--dim);font-size:12px">no</span>
+            {% endif %}
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="empty">No inactivity events recorded.</td></tr>
+        <tr><td colspan="6" class="empty">No inactivity events in this period.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </section>
+
 </main>
 
+<!-- Charts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-  const CHART_OPTS = {
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { color: "#94a3b8", maxRotation: 30 }, grid: { color: "#334155" } },
-      y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" }, beginAtZero: true }
-    }
-  };
+  const GRID   = "#1e2d45";
+  const TICK   = "#4a5e7a";
+
+  function baseOpts(yLabel) {
+    return {
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: "#1a2233", borderColor: "#253047", borderWidth: 1,
+                   titleColor: "#e2e8f0", bodyColor: "#94a3b8", padding: 10 }
+      },
+      scales: {
+        x: { ticks: { color: TICK, maxRotation: 30, font: { size: 11 } }, grid: { color: GRID } },
+        y: { ticks: { color: TICK, font: { size: 11 } }, grid: { color: GRID }, beginAtZero: true,
+             title: { display: !!yLabel, text: yLabel, color: TICK, font: { size: 11 } } }
+      }
+    };
+  }
 
   {% if freq_labels %}
   new Chart(document.getElementById("freqChart"), {
     type: "bar",
     data: {
       labels: {{ freq_labels|tojson }},
-      datasets: [{ label: "Times 10+ min inactive",
-                   data: {{ freq_values|tojson }},
-                   backgroundColor: "rgba(244,63,94,0.65)",
-                   borderColor: "rgba(244,63,94,0.9)",
-                   borderWidth: 1 }]
+      datasets: [{
+        label: "Alert count",
+        data: {{ freq_values|tojson }},
+        backgroundColor: "rgba(244,63,94,0.55)",
+        borderColor:     "rgba(244,63,94,0.85)",
+        borderWidth: 1,
+        borderRadius: 4
+      }]
     },
-    options: { ...CHART_OPTS,
-      plugins: { ...CHART_OPTS.plugins,
-        tooltip: { callbacks: { label: ctx => ctx.parsed.y + "x (10+ min events)" } }
+    options: {
+      ...baseOpts("alerts"),
+      plugins: {
+        ...baseOpts().plugins,
+        tooltip: {
+          ...baseOpts().plugins.tooltip,
+          callbacks: { label: ctx => ctx.parsed.y + " times idle 10+ min" }
+        }
       }
     }
   });
@@ -295,21 +469,30 @@
     type: "bar",
     data: {
       labels: {{ chart_labels|tojson }},
-      datasets: [{ label: "Minutes inactive",
-                   data: {{ chart_values|tojson }},
-                   backgroundColor: "rgba(56,189,248,0.55)",
-                   borderColor: "rgba(56,189,248,0.9)",
-                   borderWidth: 1 }]
+      datasets: [{
+        label: "Idle minutes",
+        data: {{ chart_values|tojson }},
+        backgroundColor: "rgba(56,189,248,0.45)",
+        borderColor:     "rgba(56,189,248,0.8)",
+        borderWidth: 1,
+        borderRadius: 4
+      }]
     },
-    options: { ...CHART_OPTS,
-      plugins: { ...CHART_OPTS.plugins,
-        tooltip: { callbacks: { label: ctx => ctx.parsed.y + " min inactive" } }
+    options: {
+      ...baseOpts("minutes"),
+      plugins: {
+        ...baseOpts().plugins,
+        tooltip: {
+          ...baseOpts().plugins.tooltip,
+          callbacks: { label: ctx => ctx.parsed.y + " idle minutes (7d)" }
+        }
       }
     }
   });
   {% endif %}
 </script>
 
+<!-- Table filters -->
 <script>
   const search      = document.getElementById("userSearch");
   const hideIgnored = document.getElementById("hideIgnored");
@@ -318,18 +501,18 @@
   const rows        = Array.from(document.querySelectorAll("#userTable tbody tr[data-search]"));
   const emptyMsg    = document.getElementById("userTableEmpty");
 
-  const saved = JSON.parse(localStorage.getItem("fp.filters") || "{}");
-  if (saved.search)     search.value       = saved.search;
-  if ("hideIgnored" in saved) hideIgnored.checked = saved.hideIgnored;
-  if ("hideNoData"  in saved) hideNoData.checked  = saved.hideNoData;
-  if ("alertedOnly" in saved) alertedOnly.checked = saved.alertedOnly;
+  const saved = JSON.parse(localStorage.getItem("fp.filters2") || "{}");
+  if (saved.search)             search.value       = saved.search;
+  if ("hideIgnored" in saved)   hideIgnored.checked = saved.hideIgnored;
+  if ("hideNoData"  in saved)   hideNoData.checked  = saved.hideNoData;
+  if ("alertedOnly" in saved)   alertedOnly.checked = saved.alertedOnly;
 
   function applyFilters() {
     const q  = search.value.trim().toLowerCase();
     const hi = hideIgnored.checked;
     const hn = hideNoData.checked;
     const ha = alertedOnly.checked;
-    localStorage.setItem("fp.filters",
+    localStorage.setItem("fp.filters2",
       JSON.stringify({ search: q, hideIgnored: hi, hideNoData: hn, alertedOnly: ha }));
     let visible = 0;
     rows.forEach(r => {
@@ -342,10 +525,9 @@
     });
     emptyMsg.style.display = (rows.length && visible === 0) ? "block" : "none";
   }
-  search.addEventListener("input", applyFilters);
-  hideIgnored.addEventListener("change", applyFilters);
-  hideNoData.addEventListener("change", applyFilters);
-  alertedOnly.addEventListener("change", applyFilters);
+  [search, hideIgnored, hideNoData, alertedOnly].forEach(el =>
+    el.addEventListener(el.tagName === "INPUT" && el.type === "search" ? "input" : "change", applyFilters)
+  );
   applyFilters();
 </script>
 {% endblock %}

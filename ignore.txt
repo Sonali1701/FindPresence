@@ -2,4 +2,3 @@
 # Example:
 # bob@yourdomain.com
 # alerts@yourdomain.onmicrosoft.com
-sonali.singh@radixsol.com

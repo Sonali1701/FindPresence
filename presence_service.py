@@ -82,11 +82,21 @@ def user_email(u):
     return (u.get("mail") or u.get("userPrincipalName") or "").lower()
 
 
-def pick_users(client, cfg):
+def pick_users(client, cfg, emp_config=None):
+    """List all users, then filter to only those in employees.json or config monitor_users."""
     users = client.list_users()
+
+    # If employees.json is loaded, use it as the source of truth
+    if emp_config:
+        wanted = set(emp_config.keys())
+        users = [u for u in users if user_email(u) in wanted]
+        return users
+
+    # Fallback to config-based list if employees.json not available
     if cfg.get("monitor_scope") == "list":
         wanted = {e.lower() for e in cfg.get("monitor_users", [])}
         users = [u for u in users if user_email(u) in wanted]
+
     return users
 
 
@@ -230,14 +240,13 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
     # Global armed state is not used when we have per-user windows
     # Check per-user armed state in the loop below
 
-    # We still refresh the user list outside the window so the dashboard
-    # shows the roster — but we only fetch presence + alert while armed.
+    # Filter to only employees in employees.json, then fetch presence for them
     try:
-        users = pick_users(client, cfg)
+        users = pick_users(client, cfg, emp_config)
     except Exception as e:
         err = f"list_users failed: {e}"
         log.error(err)
-        db.log_poll(conn, armed, 0, note="list_users error",
+        db.log_poll(conn, False, 0, note="list_users error",
                     success=False, error_text=err)
         return
 

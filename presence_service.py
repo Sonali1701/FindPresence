@@ -35,7 +35,7 @@ def in_window(cfg, now=None):
 
 
 def user_in_window(emp_data, now=None):
-    """Check if a user is currently in their monitoring window based on employees.json."""
+    """Check if a user is currently in their monitoring (alert) window."""
     if not emp_data:
         return False
     now = now or now_ist()
@@ -48,6 +48,35 @@ def user_in_window(emp_data, now=None):
     if start <= end:
         return start <= t <= end
     return t >= start or t <= end
+
+
+def user_in_display_window(emp_data, now=None):
+    """Check if a user is in their display (working hours) window for dashboard."""
+    if not emp_data:
+        return False
+    now = now or now_ist()
+    try:
+        start = _parse_hhmm(emp_data.get("display_window_start", emp_data.get("window_start", "18:30")))
+        end = _parse_hhmm(emp_data.get("display_window_end", emp_data.get("window_end", "03:30")))
+    except (ValueError, KeyError):
+        return False
+    t = now.time()
+    if start <= end:
+        return start <= t <= end
+    return t >= start or t <= end
+
+
+def user_should_show_available(emp_data, now=None):
+    """Check if user should be shown as 'Available' (in display window but not monitoring window)."""
+    if not emp_data:
+        return False
+    # If no separate display window, use monitoring window
+    if "display_window_start" not in emp_data:
+        return False
+    # Show as Available if in display window but NOT in monitoring window
+    in_display = user_in_display_window(emp_data, now)
+    in_monitoring = user_in_window(emp_data, now)
+    return in_display and not in_monitoring
 
 
 def load_ignore_file(path):

@@ -10,7 +10,8 @@ from flask import (Flask, render_template, request, redirect, url_for,
 
 import db
 from config_loader import load_config
-from presence_service import run_loop, in_window, now_ist, IST_OFFSET
+from presence_service import (run_loop, in_window, now_ist, IST_OFFSET,
+                             load_employees_config, user_should_show_available)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -89,6 +90,7 @@ app.jinja_env.filters["dur"] = _fmt_dur
 def dashboard():
     conn = db.connect(cfg["db_path"])
     db.init_db(conn)
+    emp_config = load_employees_config()
 
     now = time.time()
     days = int(request.args.get("days", 1))
@@ -97,6 +99,28 @@ def dashboard():
 
     summary = db.user_summary(conn, summary_start)
     events = db.recent_events(conn, summary_start, limit=50)
+
+    # Adjust presence display based on display windows (show "Available" during pre-work gaps)
+    def adjust_display_state(user_row, emp_data):
+        """If user is in display window but not monitoring window, show as Available."""
+        if not emp_data:
+            return user_row
+        if user_should_show_available(emp_data):
+            # User is in display window but not monitoring window - show as "Available"
+            user_copy = dict(user_row)
+            user_copy["current_state"] = "Available"
+            user_copy["_display_override"] = True
+            return user_copy
+        return user_row
+
+    # Apply display window logic to summary
+    summary_with_display = []
+    for u in summary:
+        email = u.get("email", "").lower()
+        emp_data = emp_config.get(email)
+        adjusted = adjust_display_state(u, emp_data)
+        summary_with_display.append(adjusted)
+    summary = summary_with_display
     last_poll, last_ok, last_err = db.poll_health(conn)
 
     total_alerts = sum(r["alert_count"] for r in summary)
@@ -141,6 +165,7 @@ def dashboard():
     return render_template(
         "dashboard.html",
         cfg=cfg,
+        emp_config=emp_config,
         armed=in_window(cfg),
         now_ist_str=now_ist().strftime("%Y-%m-%d %H:%M:%S IST"),
         window=f"{cfg['window_start_ist']} – {cfg['window_end_ist']} IST",

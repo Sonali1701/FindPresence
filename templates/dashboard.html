@@ -159,6 +159,7 @@
       <thead><tr>
         <th>Employee</th>
         <th>Dept</th>
+        <th>Hours</th>
         <th>State</th>
         <th>Idle for</th>
         <th>Went idle at</th>
@@ -180,6 +181,16 @@
                 <span class="pill muted" style="font-size:10px">{{ u['location'] }}</span>
               {% endif %}
             </div>
+          </td>
+          <td>
+            {% set emp_data = emp_config.get(u['email'].lower()) if u['email'] else {} %}
+            {% if emp_data %}
+              <span style="font-size:11px;color:var(--muted)">
+                {{ emp_data.get('display_window_start', emp_data.get('window_start', '—')) }} – {{ emp_data.get('display_window_end', emp_data.get('window_end', '—')) }}
+              </span>
+            {% else %}
+              <span style="font-size:11px;color:var(--dim)">—</span>
+            {% endif %}
           </td>
           <td><span class="pill bad">{{ u['current_state'] or '—' }}</span></td>
           <td><span class="dur-big">{{ u['streak_seconds']|dur }}</span></td>
@@ -222,6 +233,7 @@
         <th>#</th>
         <th>Employee</th>
         <th>Dept</th>
+        <th>Hours</th>
         <th>Times idle {{ threshold_min }}+ min</th>
         <th>Frequency</th>
         <th>Total idle time</th>
@@ -251,6 +263,16 @@
                 <span class="pill muted" style="font-size:10px">{{ o['location'] }}</span>
               {% endif %}
             </div>
+          </td>
+          <td>
+            {% set emp_data = emp_config.get(o['email'].lower()) if o['email'] else {} %}
+            {% if emp_data %}
+              <span style="font-size:11px;color:var(--muted)">
+                {{ emp_data.get('display_window_start', emp_data.get('window_start', '—')) }} – {{ emp_data.get('display_window_end', emp_data.get('window_end', '—')) }}
+              </span>
+            {% else %}
+              <span style="font-size:11px;color:var(--dim)">—</span>
+            {% endif %}
           </td>
           <td>
             <span class="freq-badge {{ badge_cls }}">{{ o['times_alerted'] }}&times;</span>
@@ -318,8 +340,9 @@
     <table id="userTable" class="sticky">
       <thead><tr>
         <th>Employee</th>
-        <th style="width:80px">Dept</th>
-        <th>Presence</th>
+        <th style="width:75px">Dept</th>
+        <th style="width:100px">Hours</th>
+        <th style="width:95px">Presence</th>
         <th>Last active</th>
         <th>Idle events</th>
         <th>Times 10+ min</th>
@@ -359,8 +382,18 @@
             </div>
           </td>
           <td>
+            {% set emp_data = emp_config.get(u['email'].lower()) if u['email'] else {} %}
+            {% if emp_data %}
+              <span style="font-size:11px;color:var(--muted)">
+                {{ emp_data.get('display_window_start', emp_data.get('window_start', '—')) }} – {{ emp_data.get('display_window_end', emp_data.get('window_end', '—')) }}
+              </span>
+            {% else %}
+              <span style="font-size:11px;color:var(--dim)">—</span>
+            {% endif %}
+          </td>
+          <td>
             {% if s == 'Available' %}
-              <span class="pill good">{{ s }}</span>
+              <span class="pill good{% if u.get('_display_override') %}" style="opacity:.7" title="Shown as Available (before monitoring window){% endif %}">{{ s }}</span>
             {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}
               <span class="pill warn">{{ s }}</span>
             {% elif s in ('Away','BeRightBack') %}
@@ -388,7 +421,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8" class="empty">No employees yet — waiting for first poll.</td></tr>
+        <tr><td colspan="9" class="empty">No employees yet — waiting for first poll.</td></tr>
       {% endfor %}
       </tbody>
     </table>

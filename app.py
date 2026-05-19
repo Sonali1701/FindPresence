@@ -111,14 +111,15 @@ def dashboard():
             user_copy["current_state"] = "Available"
             user_copy["_display_override"] = True
             return user_copy
-        return user_row
+        return dict(user_row)
 
     # Apply display window logic to summary
     summary_with_display = []
     for u in summary:
-        email = u.get("email", "").lower()
+        u_dict = dict(u) if not isinstance(u, dict) else u
+        email = u_dict.get("email", "").lower()
         emp_data = emp_config.get(email)
-        adjusted = adjust_display_state(u, emp_data)
+        adjusted = adjust_display_state(u_dict, emp_data)
         summary_with_display.append(adjusted)
     summary = summary_with_display
     last_poll, last_ok, last_err = db.poll_health(conn)

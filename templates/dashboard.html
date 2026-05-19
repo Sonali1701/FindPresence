@@ -183,10 +183,10 @@
             </div>
           </td>
           <td>
-            {% set emp_data = emp_config.get(u['email'].lower()) if u['email'] else {} %}
+            {% set emp_data = emp_config.get((u['email'] or '').lower()) if emp_config else {} %}
             {% if emp_data %}
               <span style="font-size:11px;color:var(--muted)">
-                {{ emp_data.get('display_window_start', emp_data.get('window_start', '—')) }} – {{ emp_data.get('display_window_end', emp_data.get('window_end', '—')) }}
+                {{ emp_data.get('display_window_start') or emp_data.get('window_start') or '—' }} – {{ emp_data.get('display_window_end') or emp_data.get('window_end') or '—' }}
               </span>
             {% else %}
               <span style="font-size:11px;color:var(--dim)">—</span>
@@ -265,10 +265,10 @@
             </div>
           </td>
           <td>
-            {% set emp_data = emp_config.get(o['email'].lower()) if o['email'] else {} %}
+            {% set emp_data = emp_config.get((o['email'] or '').lower()) if emp_config else {} %}
             {% if emp_data %}
               <span style="font-size:11px;color:var(--muted)">
-                {{ emp_data.get('display_window_start', emp_data.get('window_start', '—')) }} – {{ emp_data.get('display_window_end', emp_data.get('window_end', '—')) }}
+                {{ emp_data.get('display_window_start') or emp_data.get('window_start') or '—' }} – {{ emp_data.get('display_window_end') or emp_data.get('window_end') or '—' }}
               </span>
             {% else %}
               <span style="font-size:11px;color:var(--dim)">—</span>
@@ -382,10 +382,10 @@
             </div>
           </td>
           <td>
-            {% set emp_data = emp_config.get(u['email'].lower()) if u['email'] else {} %}
+            {% set emp_data = emp_config.get((u['email'] or '').lower()) if emp_config else {} %}
             {% if emp_data %}
               <span style="font-size:11px;color:var(--muted)">
-                {{ emp_data.get('display_window_start', emp_data.get('window_start', '—')) }} – {{ emp_data.get('display_window_end', emp_data.get('window_end', '—')) }}
+                {{ emp_data.get('display_window_start') or emp_data.get('window_start') or '—' }} – {{ emp_data.get('display_window_end') or emp_data.get('window_end') or '—' }}
               </span>
             {% else %}
               <span style="font-size:11px;color:var(--dim)">—</span>
@@ -393,7 +393,7 @@
           </td>
           <td>
             {% if s == 'Available' %}
-              <span class="pill good{% if u.get('_display_override') %}" style="opacity:.7" title="Shown as Available (before monitoring window){% endif %}">{{ s }}</span>
+              <span class="pill good" {% if u.get('_display_override') %}style="opacity:.7" title="Shown as Available (before monitoring window)"{% endif %}>{{ s }}</span>
             {% elif s in ('Busy','InACall','InAMeeting','Presenting','DoNotDisturb') %}
               <span class="pill warn">{{ s }}</span>
             {% elif s in ('Away','BeRightBack') %}

@@ -85,7 +85,7 @@
   <div class="meta">
     <span>Alert threshold: {{ threshold_min }} min</span>
     <span>Per-location windows configured</span>
-    <span>{{ now_ist_str }}</span>
+    <span>{{ now_est_str }}</span>
     <a href="{{ url_for('logout') }}">Sign out</a>
   </div>
 </header>
@@ -107,7 +107,7 @@
       <div class="banner-text">{{ status_msg }}</div>
       {% if latest_poll %}
       <div class="banner-meta">
-        Last poll: {{ latest_poll['ts']|ist }} &nbsp;&middot;&nbsp; {{ latest_poll['users_polled'] }} users polled
+        Last poll: {{ latest_poll['ts']|est }} &nbsp;&middot;&nbsp; {{ latest_poll['users_polled'] }} users polled
         {% if latest_poll['note'] %}&nbsp;&middot;&nbsp; {{ latest_poll['note'] }}{% endif %}
       </div>
       {% endif %}
@@ -194,7 +194,7 @@
           </td>
           <td><span class="pill bad">{{ u['current_state'] or '—' }}</span></td>
           <td><span class="dur-big">{{ u['streak_seconds']|dur }}</span></td>
-          <td style="color:var(--muted)">{{ u['streak_started_ts']|ist }}</td>
+          <td style="color:var(--muted)">{{ u['streak_started_ts']|est }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -287,7 +287,7 @@
             </div>
           </td>
           <td>{{ o['total_inactive_seconds']|dur }}</td>
-          <td style="color:var(--muted);font-size:12px">{{ o['last_inactive_ts']|ist }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ o['last_inactive_ts']|est }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -404,7 +404,7 @@
               <span class="pill muted">no data</span>
             {% endif %}
           </td>
-          <td style="color:var(--muted);font-size:12px">{{ u['last_active_ts']|ist }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ u['last_active_ts']|est }}</td>
           <td style="color:var(--muted)">{{ u['event_count'] or '—' }}</td>
           <td>
             {% if u['alert_count'] %}
@@ -453,8 +453,8 @@
           <td>
             <span style="font-weight:500">{{ e['display_name'] or e['email'] or '—' }}</span>
           </td>
-          <td style="color:var(--muted);font-size:12px">{{ e['started_ts']|ist }}</td>
-          <td style="color:var(--muted);font-size:12px">{{ e['ended_ts']|ist }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ e['started_ts']|est }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ e['ended_ts']|est }}</td>
           <td>
             {% if e['duration_seconds'] %}
               <span class="{% if (e['duration_seconds'] or 0) > 600 %}streak-pill{% else %}pill muted{% endif %}">

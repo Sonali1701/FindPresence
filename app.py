@@ -10,7 +10,7 @@ from flask import (Flask, render_template, request, redirect, url_for,
 
 import db
 from config_loader import load_config
-from presence_service import (run_loop, in_window, now_ist, IST_OFFSET,
+from presence_service import (run_loop, in_window, now_est, EST_OFFSET,
                              load_employees_config, user_should_show_available)
 
 logging.basicConfig(level=logging.INFO,
@@ -61,11 +61,11 @@ def logout():
     return redirect(url_for("login"))
 
 
-def _fmt_ist(ts):
+def _fmt_est(ts):
     if not ts:
         return "—"
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc) + IST_OFFSET
-    return dt.strftime("%Y-%m-%d %H:%M:%S IST")
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc) + EST_OFFSET
+    return dt.strftime("%Y-%m-%d %H:%M:%S EST")
 
 
 def _fmt_dur(seconds):
@@ -81,7 +81,7 @@ def _fmt_dur(seconds):
     return f"{s}s"
 
 
-app.jinja_env.filters["ist"] = _fmt_ist
+app.jinja_env.filters["est"] = _fmt_est
 app.jinja_env.filters["dur"] = _fmt_dur
 
 
@@ -168,7 +168,7 @@ def dashboard():
         cfg=cfg,
         emp_config=emp_config,
         armed=in_window(cfg),
-        now_ist_str=now_ist().strftime("%Y-%m-%d %H:%M:%S IST"),
+        now_est_str=now_est().strftime("%Y-%m-%d %H:%M:%S EST"),
         window=f"{cfg['window_start_ist']} – {cfg['window_end_ist']} IST",
         threshold_min=cfg["inactive_threshold_minutes"],
         users=summary,
@@ -238,7 +238,7 @@ def user_detail(uid):
         total_inactive=total_inactive,
         total_alerts=total_alerts,
         avg_inactive=avg_inactive,
-        now_ist_str=now_ist().strftime("%Y-%m-%d %H:%M:%S IST"),
+        now_est_str=now_est().strftime("%Y-%m-%d %H:%M:%S EST"),
     )
 
 

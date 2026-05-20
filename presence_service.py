@@ -1,4 +1,4 @@
-"""Background poller. Only runs alerts within the IST monitoring window."""
+"""Background poller. Only runs alerts within the EST monitoring window."""
 import logging
 import os
 import json
@@ -10,12 +10,12 @@ import db
 
 log = logging.getLogger("presence")
 
-# Asia/Kolkata is UTC+5:30 with no DST — hard-code to avoid tzdata dependency.
-IST_OFFSET = timedelta(hours=5, minutes=30)
+# Eastern Daylight Time (EDT: UTC-4, used May - October)
+EST_OFFSET = timedelta(hours=-4)
 
 
-def now_ist():
-    return datetime.now(timezone.utc) + IST_OFFSET
+def now_est():
+    return datetime.now(timezone.utc) + EST_OFFSET
 
 
 def _parse_hhmm(s):
@@ -25,7 +25,7 @@ def _parse_hhmm(s):
 
 def in_window(cfg, now=None):
     """Check global monitoring window (for backwards compatibility)."""
-    now = now or now_ist()
+    now = now or now_est()
     start = _parse_hhmm(cfg.get("window_start_ist", "18:30"))
     end = _parse_hhmm(cfg.get("window_end_ist", "03:30"))
     t = now.time()
@@ -38,7 +38,7 @@ def user_in_window(emp_data, now=None):
     """Check if a user is currently in their monitoring (alert) window."""
     if not emp_data:
         return False
-    now = now or now_ist()
+    now = now or now_est()
     try:
         start = _parse_hhmm(emp_data.get("window_start", "18:30"))
         end = _parse_hhmm(emp_data.get("window_end", "03:30"))
@@ -54,7 +54,7 @@ def user_in_display_window(emp_data, now=None):
     """Check if a user is in their display (working hours) window for dashboard."""
     if not emp_data:
         return False
-    now = now or now_ist()
+    now = now or now_est()
     try:
         start = _parse_hhmm(emp_data.get("display_window_start", emp_data.get("window_start", "18:30")))
         end = _parse_hhmm(emp_data.get("display_window_end", emp_data.get("window_end", "03:30")))
@@ -129,17 +129,17 @@ def pick_users(client, cfg, emp_config=None):
     return users
 
 
-def _fmt_ist_human(ts):
+def _fmt_est_human(ts):
     if not ts:
         return "Never seen active"
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc) + IST_OFFSET
-    return dt.strftime("%d %b %Y, %H:%M IST")
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc) + EST_OFFSET
+    return dt.strftime("%d %b %Y, %H:%M EST")
 
 
 def build_batch_alert_html(to_alert):
     """Build one HTML email summarising all employees who crossed the threshold."""
     n = len(to_alert)
-    now_str = now_ist().strftime("%d %b %Y, %H:%M IST")
+    now_str = now_est().strftime("%d %b %Y, %H:%M EST")
     employee_word = "employees" if n != 1 else "employee"
 
     rows_html = ""
@@ -256,7 +256,7 @@ def run_loop(cfg, stop_event):
     while not stop_event.is_set():
         try:
             poll_count += 1
-            log.info("Poll iteration #%d at %s IST", poll_count, now_ist().strftime("%H:%M:%S"))
+            log.info("Poll iteration #%d at %s EST", poll_count, now_ist().strftime("%H:%M:%S"))
             poll_once(client, conn, cfg, threshold, emp_config)
         except Exception as e:
             log.exception("poll loop error: %s", e)
@@ -318,6 +318,10 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
         pres = presences.get(uid, {})
         availability = pres.get("availability", "Unknown")
 
+        # Check per-user armed state (in their monitoring window)
+        emp_data = emp_config.get(email.lower())
+        user_armed = user_in_window(emp_data) if emp_data else in_window(cfg)
+
         if availability in ACTIVE_STATES:
             # User is active — close any open inactivity event.
             if user_row["in_inactive_streak"]:
@@ -331,8 +335,8 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
                 streak_started_ts=None,
                 streak_alerted=0,
             )
-        else:
-            # User is inactive.
+        elif user_armed:
+            # User is INACTIVE and WITHIN their monitoring window — track inactivity
             if not user_row["in_inactive_streak"]:
                 # First inactive tick — start a streak (and an event row).
                 db.start_inactivity(conn, uid, email, name, availability, now)
@@ -352,11 +356,8 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
                 already_alerted = bool(user_row["streak_alerted"])
 
             inactive_for = now - streak_started
-            # Check per-user armed state
-            emp_data = emp_config.get(email.lower())
-            user_armed = user_in_window(emp_data) if emp_data else in_window(cfg)
 
-            if user_armed and not already_alerted and inactive_for >= threshold:
+            if not already_alerted and inactive_for >= threshold:
                 minutes = int(inactive_for // 60)
                 to_alert.append({
                     "uid": uid,
@@ -364,8 +365,19 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
                     "email": email or "—",
                     "state": availability,
                     "minutes": minutes,
-                    "last_active": _fmt_ist_human(user_row["last_active_ts"]),
+                    "last_active": _fmt_est_human(user_row["last_active_ts"]),
                 })
+        else:
+            # User is INACTIVE but OUTSIDE their monitoring window — close streak, don't alert
+            if user_row["in_inactive_streak"]:
+                db.end_inactivity(conn, uid, now)
+                db.set_user_state(
+                    conn, uid,
+                    current_state=availability,
+                    in_inactive_streak=0,
+                    streak_started_ts=None,
+                    streak_alerted=0,
+                )
 
     # Send ONE batched report email for all employees who crossed threshold this poll.
     if to_alert:
@@ -375,7 +387,7 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
             names += f" +{n - 3} more"
         subject = (
             f"[FindPresence] {n} employee{'s' if n != 1 else ''} idle 10+ min"
-            f" — {now_ist().strftime('%d %b, %H:%M IST')}"
+            f" — {now_ist().strftime('%d %b, %H:%M EST')}"
         )
         try:
             client.send_mail(

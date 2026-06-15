@@ -256,7 +256,7 @@ def run_loop(cfg, stop_event):
     while not stop_event.is_set():
         try:
             poll_count += 1
-            log.info("Poll iteration #%d at %s EST", poll_count, now_ist().strftime("%H:%M:%S"))
+            log.info("Poll iteration #%d at %s EST", poll_count, now_est().strftime("%H:%M:%S"))
             poll_once(client, conn, cfg, threshold, emp_config)
         except Exception as e:
             log.exception("poll loop error: %s", e)
@@ -387,7 +387,7 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
             names += f" +{n - 3} more"
         subject = (
             f"[FindPresence] {n} employee{'s' if n != 1 else ''} idle 10+ min"
-            f" — {now_ist().strftime('%d %b, %H:%M EST')}"
+            f" — {now_est().strftime('%d %b, %H:%M EST')}"
         )
         try:
             client.send_mail(

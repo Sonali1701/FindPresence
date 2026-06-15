@@ -7,7 +7,7 @@
     <div class="meta">{{ user['display_name'] or user['email'] }}</div>
   </div>
   <div class="meta">
-    {{ now_ist_str }}
+    {{ now_est_str }}
     <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
   </div>
 </header>
@@ -38,7 +38,7 @@
     </div>
     <div class="card">
       <div class="label">Last Active</div>
-      <div class="value" style="font-size:14px;">{{ user['last_active_ts']|ist }}</div>
+      <div class="value" style="font-size:14px;">{{ user['last_active_ts']|est }}</div>
     </div>
     <div class="card">
       <div class="label">Email</div>
@@ -100,8 +100,8 @@
       <tbody>
         {% for e in events %}
         <tr>
-          <td>{{ e['started_ts']|ist }}</td>
-          <td>{{ e['ended_ts']|ist }}</td>
+          <td>{{ e['started_ts']|est }}</td>
+          <td>{{ e['ended_ts']|est }}</td>
           <td>{{ e['duration_seconds']|dur }}</td>
           <td>{{ e['state_during'] }}</td>
           <td>

@@ -245,7 +245,7 @@ def user_detail(uid):
 @app.route("/healthz")
 def healthz():
     return jsonify(ok=True, armed=in_window(cfg),
-                   now_ist=now_ist().isoformat())
+                   now_est=now_est().isoformat())
 
 
 # Render's gunicorn imports `app`, so kick off the poller on import.

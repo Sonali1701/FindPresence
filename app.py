@@ -12,7 +12,7 @@ import db
 from config_loader import load_config
 from presence_service import (run_loop, in_window, now_est, EST_OFFSET,
                              load_employees_config, user_should_show_available,
-                             send_daily_report)
+                             send_daily_report, est_day_bounds)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -252,26 +252,21 @@ def healthz():
 @app.route("/send-daily-report")
 @require_login
 def trigger_daily_report():
-    """Manually trigger daily report for yesterday."""
+    """Manually trigger daily report. ?day=today reports today so far; default is yesterday."""
     from presence_service import GraphClient
 
     conn = db.connect(cfg["db_path"])
     db.init_db(conn)
     emp_config = load_employees_config()
 
-    # Get yesterday's date range (midnight to midnight EST)
-    now = now_est()
-    yesterday = now - timedelta(days=1)
-    day_start = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start + timedelta(days=1)
-
-    day_start_ts = day_start.timestamp()
-    day_end_ts = day_end.timestamp()
+    # Default: yesterday's full EST day. ?day=today gives the current EST day so far.
+    days_ago = 0 if request.args.get("day") == "today" else 1
+    day_start_ts, day_end_ts, day_str = est_day_bounds(days_ago=days_ago)
 
     try:
         client = GraphClient(cfg["tenant_id"], cfg["client_id"], cfg["client_secret"])
-        send_daily_report(client, conn, cfg, day_start_ts, day_end_ts, emp_config)
-        return jsonify(ok=True, message=f"Daily report sent for {day_start.strftime('%Y-%m-%d')}")
+        send_daily_report(client, conn, cfg, day_start_ts, day_end_ts, day_str, emp_config)
+        return jsonify(ok=True, message=f"Daily report sent for {day_str}")
     except Exception as e:
         log.error("Failed to send daily report: %s", e)
         return jsonify(ok=False, error=str(e)), 500

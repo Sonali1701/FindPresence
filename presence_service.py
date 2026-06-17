@@ -136,35 +136,88 @@ def _fmt_est_human(ts):
     return dt.strftime("%d %b %Y, %H:%M EST")
 
 
-def build_daily_report_html(employees, report_date, emp_config):
-    """Build comprehensive daily report showing all employees with idle time and working hours."""
+def _fmt_est_clock(ts):
+    """Format a unix timestamp as EST HH:MM (for login/logout), or — if missing."""
+    if not ts:
+        return "—"
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc) + EST_OFFSET
+    return dt.strftime("%H:%M")
+
+
+def _window_seconds(emp_data):
+    """Length of an employee's monitoring window in seconds (handles overnight)."""
+    if not emp_data:
+        return 0
+    try:
+        sh, sm = emp_data["window_start"].split(":")
+        eh, em = emp_data["window_end"].split(":")
+        start = int(sh) * 3600 + int(sm) * 60
+        end = int(eh) * 3600 + int(em) * 60
+    except (KeyError, ValueError, AttributeError):
+        return 0
+    if end <= start:
+        end += 24 * 3600
+    return end - start
+
+
+def est_day_bounds(days_ago=1):
+    """Return (start_ts_utc, end_ts_utc, 'YYYY-MM-DD') for an EST calendar day N days ago."""
+    target = now_est() - timedelta(days=days_ago)
+    day_str = target.strftime("%Y-%m-%d")
+    # EST midnight wall-clock -> true UTC unix timestamp.
+    naive_est_midnight = target.replace(hour=0, minute=0, second=0,
+                                        microsecond=0, tzinfo=None)
+    start_dt_utc = (naive_est_midnight - EST_OFFSET).replace(tzinfo=timezone.utc)
+    start_ts = start_dt_utc.timestamp()
+    return start_ts, start_ts + 24 * 3600, day_str
+
+
+def build_daily_report_html(employees, report_date):
+    """Build comprehensive daily report: login/logout, presence %, longest break, total idle."""
     date_str = datetime.fromtimestamp(report_date, tz=timezone.utc).strftime("%d %B %Y")
 
     rows_html = ""
     total_monitored = 0
     total_idle_all = 0
-    high_idle_count = 0
+    concern_count = 0
 
     for i, emp in enumerate(employees, 1):
         total_monitored += 1
         idle_seconds = emp.get("total_seconds", 0)
         total_idle_all += idle_seconds
 
-        # Highlight if idle time is significant
-        row_bg = "background:#fff5f5;" if idle_seconds > 1800 else ""  # > 30 min
-        time_color = "#ef4444" if idle_seconds > 1800 else "#6b7280"
+        pct = emp.get("presence_pct")           # int or None
+        longest_secs = emp.get("longest_break_seconds", 0)
 
-        if idle_seconds > 1800:
-            high_idle_count += 1
+        # "Concern" = low presence (<70%) or a single break over 30 min
+        concern = (pct is not None and pct < 70) or longest_secs > 1800
+        if concern:
+            concern_count += 1
+        row_bg = "background:#fff5f5;" if concern else ""
+
+        # Presence % cell color
+        if pct is None:
+            pct_html = '<span style="color:#9ca3af">—</span>'
+        elif pct < 70:
+            pct_html = f'<span style="color:#ef4444;font-weight:700">{pct}%</span>'
+        elif pct < 85:
+            pct_html = f'<span style="color:#f59e0b;font-weight:700">{pct}%</span>'
+        else:
+            pct_html = f'<span style="color:#16a34a;font-weight:700">{pct}%</span>'
+
+        longest_color = "#ef4444" if longest_secs > 1800 else "#6b7280"
 
         rows_html += (
             f'<tr style="border-bottom:1px solid #e5e7eb;{row_bg}">'
-            f'<td style="padding:10px 14px;text-align:center;font-weight:600">{i}</td>'
-            f'<td style="padding:10px 14px;font-weight:600">{emp["name"]}</td>'
-            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{emp["email"]}</td>'
-            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{emp.get("department", "—")}</td>'
-            f'<td style="padding:10px 14px;text-align:center;color:{time_color};font-weight:700">{emp["total_duration"]}</td>'
-            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px;text-align:center">{emp.get("event_count", 0)}</td>'
+            f'<td style="padding:10px 12px;text-align:center;font-weight:600">{i}</td>'
+            f'<td style="padding:10px 12px;font-weight:600">{emp["name"]}'
+            f'<div style="font-size:11px;color:#9ca3af;font-weight:400">{emp["email"]}</div></td>'
+            f'<td style="padding:10px 12px;color:#6b7280;font-size:12px">{emp.get("department", "—")}</td>'
+            f'<td style="padding:10px 12px;text-align:center;color:#374151;font-size:12px">{emp.get("login", "—")}</td>'
+            f'<td style="padding:10px 12px;text-align:center;color:#374151;font-size:12px">{emp.get("logout", "—")}</td>'
+            f'<td style="padding:10px 12px;text-align:center">{pct_html}</td>'
+            f'<td style="padding:10px 12px;text-align:center;color:{longest_color};font-weight:600">{emp.get("longest_break", "—")}</td>'
+            f'<td style="padding:10px 12px;text-align:center;color:#ef4444;font-weight:700">{emp["total_duration"]}</td>'
             f'</tr>'
         )
 
@@ -219,8 +272,8 @@ def build_daily_report_html(employees, report_date, emp_config):
                 <div style="font-size:24px;font-weight:700;color:#ef4444;margin-top:4px">{total_idle_str}</div>
               </td>
               <td style="padding:8px 0">
-                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Significant Idle (>30min)</div>
-                <div style="font-size:24px;font-weight:700;color:#ef4444;margin-top:4px">{high_idle_count}</div>
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Needs Attention</div>
+                <div style="font-size:24px;font-weight:700;color:#ef4444;margin-top:4px">{concern_count}</div>
               </td>
             </tr>
           </table>
@@ -235,24 +288,30 @@ def build_daily_report_html(employees, report_date, emp_config):
                  style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
             <thead>
               <tr style="background:#f3f4f6">
-                <th style="padding:12px 10px;text-align:center;font-size:11px;
+                <th style="padding:12px 12px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600;width:40px">#</th>
-                <th style="padding:12px 10px;text-align:left;font-size:11px;
+                           color:#6b7280;font-weight:600;width:36px">#</th>
+                <th style="padding:12px 12px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
                            color:#6b7280;font-weight:600">Employee</th>
-                <th style="padding:12px 10px;text-align:left;font-size:11px;
+                <th style="padding:12px 12px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Email</th>
-                <th style="padding:12px 10px;text-align:left;font-size:11px;
+                           color:#6b7280;font-weight:600">Dept</th>
+                <th style="padding:12px 12px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Department</th>
-                <th style="padding:12px 10px;text-align:center;font-size:11px;
+                           color:#6b7280;font-weight:600">Login</th>
+                <th style="padding:12px 12px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Total Idle Time</th>
-                <th style="padding:12px 10px;text-align:center;font-size:11px;
+                           color:#6b7280;font-weight:600">Logout</th>
+                <th style="padding:12px 12px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Events</th>
+                           color:#6b7280;font-weight:600">Presence %</th>
+                <th style="padding:12px 12px;text-align:center;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Longest Break</th>
+                <th style="padding:12px 12px;text-align:center;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Total Idle</th>
               </tr>
             </thead>
             <tbody>{rows_html}</tbody>
@@ -267,13 +326,12 @@ def build_daily_report_html(employees, report_date, emp_config):
             ⚠️ Important Notes
           </p>
           <ul style="margin:0;padding:0 0 0 20px;color:#92400e;font-size:12px;line-height:1.6">
-            <li>Times shown in EDT (Eastern Daylight Time)</li>
-            <li>Red highlighted rows = Employee idle >30 minutes during shift</li>
-            <li>"Total Idle Time" = cumulative inactive duration during working hours</li>
-            <li>"Events" = number of separate inactivity incidents</li>
-            <li>Sorted by total idle time (highest to lowest)</li>
-            <li>Only includes employees on monitoring list</li>
-            <li>Data tracked during configured working hours for each employee</li>
+            <li><b>Login / Logout</b> = first and last time the employee was active during their shift (EDT)</li>
+            <li><b>Presence %</b> = share of the shift they were active &mdash; <span style="color:#16a34a;font-weight:700">85%+ good</span>, <span style="color:#f59e0b;font-weight:700">70-84% ok</span>, <span style="color:#ef4444;font-weight:700">below 70% low</span></li>
+            <li><b>Longest Break</b> = their single longest continuous idle stretch (a 2h gap matters more than many short ones)</li>
+            <li><b>Total Idle</b> = all inactive time added up during the shift</li>
+            <li>Red highlighted rows = needs attention (presence below 70% or a break over 30 min)</li>
+            <li>Sorted by total idle time (highest first). Times in EDT. Login/Logout shows "—" if the employee was never seen active that day.</li>
           </ul>
         </td>
       </tr>
@@ -461,7 +519,7 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
     except Exception as e:
         err = f"get_presences failed: {e}"
         log.error(err)
-        db.log_poll(conn, armed, len(active_ids), note="presence fetch error",
+        db.log_poll(conn, False, len(active_ids), note="presence fetch error",
                     success=False, error_text=err)
         return
 
@@ -494,6 +552,9 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
                 streak_started_ts=None,
                 streak_alerted=0,
             )
+            # Track login/logout: record first + last active time during their shift window
+            if user_armed:
+                db.record_active(conn, uid, now_est().strftime("%Y-%m-%d"), now)
         elif user_armed:
             # User is INACTIVE and WITHIN their monitoring window — track inactivity
             if not user_row["in_inactive_streak"]:
@@ -549,18 +610,17 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
     db.log_poll(conn, True, len(active_ids))  # Always successful poll if we get here
 
 
-def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, emp_config=None):
-    """Send daily comprehensive report showing all employees' idle time and working hours."""
+def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, day_str, emp_config=None):
+    """Send daily report: each employee's login/logout, presence %, longest break, total idle."""
     if emp_config is None:
         emp_config = load_employees_config()
 
-    employees_data = db.daily_report_all(conn, date_start_ts, date_end_ts)
+    employees_data = db.daily_report_all(conn, date_start_ts, date_end_ts, day_str)
 
     if not employees_data:
-        log.info("Daily report: no data for %s", datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
+        log.info("Daily report: no data for %s", day_str)
         return
 
-    # Convert rows to dicts with formatted duration
     def fmt_dur(seconds):
         seconds = int(seconds)
         h, rem = divmod(seconds, 3600)
@@ -571,26 +631,44 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, emp_config=
             return f"{m}m"
         return f"{s}s"
 
-    employees_list = [
-        {
+    employees_list = []
+    for row in employees_data:
+        emp_data = emp_config.get((row["email"] or "").lower())
+        idle = row["total_seconds"] or 0
+        shift = _window_seconds(emp_data)
+        first_ts = row["first_active_ts"]
+        longest = row["longest_break"] or 0
+
+        # Only compute presence % when we actually have signal for the day.
+        has_data = (first_ts is not None) or (row["event_count"] or 0) > 0
+        if shift > 0 and has_data:
+            active = max(0, shift - idle)
+            pct = max(0, min(100, int(round(active / shift * 100))))
+        else:
+            pct = None
+
+        employees_list.append({
             "name": row["display_name"] or row["email"],
             "email": row["email"],
             "department": row["department"] or "—",
-            "location": row["location"] or "—",
-            "event_count": row["event_count"],
-            "total_seconds": row["total_seconds"],
-            "total_duration": fmt_dur(row["total_seconds"]),
-        }
-        for row in employees_data
-    ]
+            "total_seconds": idle,
+            "total_duration": fmt_dur(idle) if idle else "—",
+            "login": _fmt_est_clock(first_ts),
+            "logout": _fmt_est_clock(row["last_active_ts"]),
+            "presence_pct": pct,
+            "longest_break": fmt_dur(longest) if longest else "—",
+            "longest_break_seconds": longest,
+        })
 
-    html = build_daily_report_html(employees_list, date_start_ts, emp_config)
+    html = build_daily_report_html(employees_list, date_start_ts)
     if not html:
         return
 
     total_employees = len(employees_list)
-    high_idle = sum(1 for e in employees_list if e["total_seconds"] > 1800)
-    subject = f"[FindPresence] Daily Report — {total_employees} employees, {high_idle} with >30min idle"
+    attention = sum(1 for e in employees_list
+                    if (e["presence_pct"] is not None and e["presence_pct"] < 70)
+                    or e["longest_break_seconds"] > 1800)
+    subject = f"[FindPresence] Daily Report ({day_str}) — {total_employees} employees, {attention} need attention"
 
     try:
         client.send_mail(
@@ -599,7 +677,7 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, emp_config=
             subject=subject,
             body_html=html,
         )
-        log.info("Daily report sent — %d employees (%d with >30min idle), %s",
-                 total_employees, high_idle, datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
+        log.info("Daily report sent — %d employees (%d need attention), %s",
+                 total_employees, attention, day_str)
     except Exception as e:
         log.error("send daily report failed: %s", e)

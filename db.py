@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS poll_log (
     error_text TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_poll_ts ON poll_log(ts);
+
+CREATE TABLE IF NOT EXISTS daily_presence (
+    user_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    first_active_ts REAL,
+    last_active_ts REAL,
+    PRIMARY KEY (user_id, day)
+);
 """
 
 
@@ -141,6 +149,19 @@ def end_inactivity(conn, uid, ended_ts):
                SET ended_ts=?, duration_seconds=?-started_ts
                WHERE user_id=? AND ended_ts IS NULL""",
             (ended_ts, ended_ts, uid),
+        )
+
+
+def record_active(conn, uid, day, ts):
+    """Track first + last active timestamp per user per day (for login/logout report)."""
+    with _lock, conn:
+        conn.execute(
+            """INSERT INTO daily_presence(user_id, day, first_active_ts, last_active_ts)
+               VALUES(?, ?, ?, ?)
+               ON CONFLICT(user_id, day) DO UPDATE SET
+                 last_active_ts=excluded.last_active_ts,
+                 first_active_ts=MIN(first_active_ts, excluded.first_active_ts)""",
+            (uid, day, ts, ts),
         )
 
 
@@ -329,20 +350,24 @@ def inactivity_frequency_chart(conn, since_ts):
     ).fetchall()
 
 
-def daily_report_all(conn, date_start_ts, date_end_ts):
-    """Get all monitored employees with their total idle time for a specific day, sorted by idle time descending."""
+def daily_report_all(conn, date_start_ts, date_end_ts, day=None):
+    """Get all monitored employees with idle stats + login/logout for a day, sorted by idle time desc."""
     return conn.execute(
         """SELECT u.id, u.email, u.display_name, u.department, u.location,
                   COUNT(e.id) AS event_count,
-                  COALESCE(SUM(e.duration_seconds), 0) AS total_seconds
+                  COALESCE(SUM(e.duration_seconds), 0) AS total_seconds,
+                  COALESCE(MAX(e.duration_seconds), 0) AS longest_break,
+                  dp.first_active_ts AS first_active_ts,
+                  dp.last_active_ts AS last_active_ts
            FROM users u
            LEFT JOIN inactivity_events e ON u.id=e.user_id
                  AND e.started_ts >= ?
                  AND e.started_ts < ?
+           LEFT JOIN daily_presence dp ON dp.user_id=u.id AND dp.day=?
            WHERE u.ignored=0
            GROUP BY u.id
            ORDER BY total_seconds DESC""",
-        (date_start_ts, date_end_ts),
+        (date_start_ts, date_end_ts, day),
     ).fetchall()
 
 

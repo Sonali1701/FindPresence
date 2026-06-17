@@ -329,21 +329,19 @@ def inactivity_frequency_chart(conn, since_ts):
     ).fetchall()
 
 
-def daily_offenders(conn, date_start_ts, date_end_ts):
-    """Get employees with 2+ instances of 10+ min inactivity on a specific day."""
+def daily_report_all(conn, date_start_ts, date_end_ts):
+    """Get all monitored employees with their total idle time for a specific day, sorted by idle time descending."""
     return conn.execute(
-        """SELECT u.id, u.email, u.display_name, u.department,
-                  COUNT(e.id) AS count,
+        """SELECT u.id, u.email, u.display_name, u.department, u.location,
+                  COUNT(e.id) AS event_count,
                   COALESCE(SUM(e.duration_seconds), 0) AS total_seconds
            FROM users u
-           JOIN inactivity_events e ON e.user_id=u.id
-           WHERE e.alerted=1
+           LEFT JOIN inactivity_events e ON u.id=e.user_id
                  AND e.started_ts >= ?
                  AND e.started_ts < ?
-                 AND u.ignored=0
+           WHERE u.ignored=0
            GROUP BY u.id
-           HAVING COUNT(e.id) >= 2
-           ORDER BY COUNT(e.id) DESC""",
+           ORDER BY total_seconds DESC""",
         (date_start_ts, date_end_ts),
     ).fetchall()
 

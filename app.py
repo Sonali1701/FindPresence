@@ -257,6 +257,7 @@ def trigger_daily_report():
 
     conn = db.connect(cfg["db_path"])
     db.init_db(conn)
+    emp_config = load_employees_config()
 
     # Get yesterday's date range (midnight to midnight EST)
     now = now_est()
@@ -269,7 +270,7 @@ def trigger_daily_report():
 
     try:
         client = GraphClient(cfg["tenant_id"], cfg["client_id"], cfg["client_secret"])
-        send_daily_report(client, conn, cfg, day_start_ts, day_end_ts)
+        send_daily_report(client, conn, cfg, day_start_ts, day_end_ts, emp_config)
         return jsonify(ok=True, message=f"Daily report sent for {day_start.strftime('%Y-%m-%d')}")
     except Exception as e:
         log.error("Failed to send daily report: %s", e)

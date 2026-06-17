@@ -136,26 +136,55 @@ def _fmt_est_human(ts):
     return dt.strftime("%d %b %Y, %H:%M EST")
 
 
-def build_daily_report_html(daily_offenders, report_date):
-    """Build HTML email for daily summary report of employees idle 10+ min more than 2x."""
-    n = len(daily_offenders)
-    if n == 0:
-        return None
-
+def build_daily_report_html(employees, report_date, emp_config):
+    """Build comprehensive daily report showing all employees with idle time and working hours."""
     date_str = datetime.fromtimestamp(report_date, tz=timezone.utc).strftime("%d %B %Y")
 
     rows_html = ""
-    for i, emp in enumerate(daily_offenders, 1):
+    total_monitored = 0
+    total_idle_all = 0
+    high_idle_count = 0
+
+    for i, emp in enumerate(employees, 1):
+        total_monitored += 1
+        idle_seconds = emp.get("total_seconds", 0)
+        total_idle_all += idle_seconds
+
+        # Get working hours from emp_config
+        emp_email = emp.get("email", "").lower()
+        emp_data = emp_config.get(emp_email, {})
+        hours = f"{emp_data.get('display_window_start', '—')} – {emp_data.get('display_window_end', '—')} EDT"
+
+        # Highlight if idle time is significant
+        row_bg = "background:#fff5f5;" if idle_seconds > 1800 else ""  # > 30 min
+        time_color = "#ef4444" if idle_seconds > 1800 else "#6b7280"
+
+        if idle_seconds > 1800:
+            high_idle_count += 1
+
         rows_html += (
-            f'<tr style="border-bottom:1px solid #e5e7eb">'
+            f'<tr style="border-bottom:1px solid #e5e7eb;{row_bg}">'
             f'<td style="padding:10px 14px;text-align:center;font-weight:600">{i}</td>'
             f'<td style="padding:10px 14px;font-weight:600">{emp["name"]}</td>'
-            f'<td style="padding:10px 14px;color:#6b7280">{emp["email"]}</td>'
-            f'<td style="padding:10px 14px;color:#6b7280">{emp["department"]}</td>'
-            f'<td style="padding:10px 14px;text-align:center;color:#ef4444;font-weight:700">{emp["count"]}x</td>'
-            f'<td style="padding:10px 14px;font-weight:600;color:#ef4444">{emp["total_duration"]}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{emp["email"]}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{emp.get("department", "—")}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{hours}</td>'
+            f'<td style="padding:10px 14px;text-align:center;color:{time_color};font-weight:700">{emp["total_duration"]}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px;text-align:center">{emp.get("event_count", 0)}</td>'
             f'</tr>'
         )
+
+    def fmt_dur(seconds):
+        seconds = int(seconds)
+        h, rem = divmod(seconds, 3600)
+        m, s = divmod(rem, 60)
+        if h:
+            return f"{h}h {m}m"
+        if m:
+            return f"{m}m"
+        return f"{s}s"
+
+    total_idle_str = fmt_dur(total_idle_all)
 
     return f"""
 <!DOCTYPE html>
@@ -164,61 +193,75 @@ def build_daily_report_html(daily_offenders, report_date):
 <body style="margin:0;padding:0;background:#f9fafb;font-family:system-ui,-apple-system,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0">
   <tr><td align="center">
-    <table width="700" cellpadding="0" cellspacing="0"
+    <table width="900" cellpadding="0" cellspacing="0"
            style="background:#ffffff;border-radius:10px;overflow:hidden;
                   border:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.07)">
 
       <!-- Header -->
       <tr>
-        <td style="background:#111827;padding:20px 28px">
-          <span style="color:#38bdf8;font-size:13px;font-weight:700;letter-spacing:.06em;
+        <td style="background:#111827;padding:24px 28px">
+          <span style="color:#38bdf8;font-size:14px;font-weight:700;letter-spacing:.06em;
                        text-transform:uppercase">FindPresence</span>
-          <span style="color:#ef4444;font-size:13px;font-weight:700;margin-left:12px">
-            &bull; Daily Inactivity Report
+          <span style="color:#ef4444;font-size:14px;font-weight:700;margin-left:12px">
+            &bull; Daily Employee Activity Report
           </span>
         </td>
       </tr>
 
-      <!-- Summary -->
+      <!-- Summary Stats -->
       <tr>
-        <td style="padding:24px 28px 16px">
-          <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827">
-            Daily Activity Summary
+        <td style="padding:24px 28px;background:#f9fafb;border-bottom:1px solid #e5e7eb">
+          <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#111827">
+            {date_str}
           </p>
-          <p style="margin:0;font-size:13px;color:#6b7280">
-            <b>{date_str}</b>
-          </p>
-          <p style="margin:8px 0 0;font-size:13px;color:#6b7280">
-            <b>{n} employee{'s' if n != 1 else ''}</b> idle for 10+ minutes more than 2 times
-          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+            <tr>
+              <td style="padding:8px 0;border-right:1px solid #e5e7eb;padding-right:20px;margin-right:20px">
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Total Monitored</div>
+                <div style="font-size:24px;font-weight:700;color:#111827;margin-top:4px">{total_monitored}</div>
+              </td>
+              <td style="padding:8px 0;border-right:1px solid #e5e7eb;padding-right:20px;margin-right:20px">
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Total Idle Time</div>
+                <div style="font-size:24px;font-weight:700;color:#ef4444;margin-top:4px">{total_idle_str}</div>
+              </td>
+              <td style="padding:8px 0">
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Significant Idle (>30min)</div>
+                <div style="font-size:24px;font-weight:700;color:#ef4444;margin-top:4px">{high_idle_count}</div>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
 
-      <!-- Table -->
+      <!-- Main Table -->
       <tr>
-        <td style="padding:0 28px 24px">
+        <td style="padding:24px 28px">
+          <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#111827">Employee Inactivity Summary</p>
           <table width="100%" cellpadding="0" cellspacing="0"
                  style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
             <thead>
               <tr style="background:#f3f4f6">
-                <th style="padding:10px 14px;text-align:center;font-size:11px;
+                <th style="padding:12px 10px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600;width:50px">#</th>
-                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           color:#6b7280;font-weight:600;width:40px">#</th>
+                <th style="padding:12px 10px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
                            color:#6b7280;font-weight:600">Employee</th>
-                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                <th style="padding:12px 10px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
                            color:#6b7280;font-weight:600">Email</th>
-                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                <th style="padding:12px 10px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Dept</th>
-                <th style="padding:10px 14px;text-align:center;font-size:11px;
+                           color:#6b7280;font-weight:600">Department</th>
+                <th style="padding:12px 10px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Count</th>
-                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           color:#6b7280;font-weight:600">Working Hours (EDT)</th>
+                <th style="padding:12px 10px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Total Idle</th>
+                           color:#6b7280;font-weight:600">Total Idle Time</th>
+                <th style="padding:12px 10px;text-align:center;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Events</th>
               </tr>
             </thead>
             <tbody>{rows_html}</tbody>
@@ -226,11 +269,29 @@ def build_daily_report_html(daily_offenders, report_date):
         </td>
       </tr>
 
+      <!-- Important Notes -->
+      <tr>
+        <td style="padding:20px 28px;background:#fffbeb;border-top:1px solid #fcd34d">
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em">
+            ⚠️ Important Notes
+          </p>
+          <ul style="margin:0;padding:0 0 0 20px;color:#92400e;font-size:12px;line-height:1.6">
+            <li>Times shown in EDT (Eastern Daylight Time)</li>
+            <li>Red highlighted rows = Employee idle >30 minutes during shift</li>
+            <li>"Total Idle Time" = cumulative inactive duration during working hours</li>
+            <li>"Events" = number of separate inactivity incidents</li>
+            <li>Sorted by total idle time (highest to lowest)</li>
+            <li>Only includes employees on monitoring list</li>
+            <li>Data tracked during configured working hours for each employee</li>
+          </ul>
+        </td>
+      </tr>
+
       <!-- Footer -->
       <tr>
-        <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:14px 28px">
+        <td style="background:#f3f4f6;border-top:1px solid #e5e7eb;padding:14px 28px">
           <p style="margin:0;font-size:11px;color:#9ca3af">
-            This is an automated daily summary report. Only employees with 2+ instances of 10+ minute inactivity are shown.
+            Generated by FindPresence • {datetime.fromtimestamp(report_date, tz=timezone.utc).strftime("%d %b %Y at %H:%M UTC")}
           </p>
         </td>
       </tr>
@@ -486,39 +547,26 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
                     streak_alerted=0,
                 )
 
-    # Send ONE batched report email for all employees who crossed threshold this poll.
+    # Mark employees as alerted for daily report (do NOT send immediate emails)
+    # Emails are sent once daily via send_daily_report() endpoint
     if to_alert:
-        n = len(to_alert)
-        names = ", ".join(item["name"] for item in to_alert[:3])
-        if n > 3:
-            names += f" +{n - 3} more"
-        subject = (
-            f"[FindPresence] {n} employee{'s' if n != 1 else ''} idle 10+ min"
-            f" — {now_est().strftime('%d %b, %H:%M EST')}"
-        )
-        try:
-            client.send_mail(
-                sender=cfg["notify_from"],
-                to=cfg["notify_to"],
-                subject=subject,
-                body_html=build_batch_alert_html(to_alert),
-            )
-            for item in to_alert:
-                db.mark_alerted(conn, item["uid"], now)
-                db.set_user_state(conn, item["uid"], streak_alerted=1)
-            log.info("ALERT batch email sent — %d employees: %s", n, names)
-        except Exception as e:
-            log.error("batch send_mail failed: %s", e)
+        for item in to_alert:
+            db.mark_alerted(conn, item["uid"], now)
+            db.set_user_state(conn, item["uid"], streak_alerted=1)
+        log.info("Marked %d employees as alerted (daily report will be sent at end of day)", len(to_alert))
 
     db.log_poll(conn, True, len(active_ids))  # Always successful poll if we get here
 
 
-def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts):
-    """Send daily summary email for employees with 2+ 10-min idle events."""
-    offenders = db.daily_offenders(conn, date_start_ts, date_end_ts)
+def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, emp_config=None):
+    """Send daily comprehensive report showing all employees' idle time and working hours."""
+    if emp_config is None:
+        emp_config = load_employees_config()
 
-    if not offenders:
-        log.info("Daily report: no offenders for %s", datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
+    employees_data = db.daily_report_all(conn, date_start_ts, date_end_ts)
+
+    if not employees_data:
+        log.info("Daily report: no data for %s", datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
         return
 
     # Convert rows to dicts with formatted duration
@@ -532,23 +580,26 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts):
             return f"{m}m"
         return f"{s}s"
 
-    daily_offenders_list = [
+    employees_list = [
         {
             "name": row["display_name"] or row["email"],
             "email": row["email"],
             "department": row["department"] or "—",
-            "count": row["count"],
+            "location": row["location"] or "—",
+            "event_count": row["event_count"],
+            "total_seconds": row["total_seconds"],
             "total_duration": fmt_dur(row["total_seconds"]),
         }
-        for row in offenders
+        for row in employees_data
     ]
 
-    html = build_daily_report_html(daily_offenders_list, date_start_ts)
+    html = build_daily_report_html(employees_list, date_start_ts, emp_config)
     if not html:
         return
 
-    n = len(daily_offenders_list)
-    subject = f"[FindPresence] Daily Report — {n} employee{'s' if n != 1 else ''} idle 2+ times"
+    total_employees = len(employees_list)
+    high_idle = sum(1 for e in employees_list if e["total_seconds"] > 1800)
+    subject = f"[FindPresence] Daily Report — {total_employees} employees, {high_idle} with >30min idle"
 
     try:
         client.send_mail(
@@ -557,6 +608,7 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts):
             subject=subject,
             body_html=html,
         )
-        log.info("Daily report sent — %d employees, %s", n, datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
+        log.info("Daily report sent — %d employees (%d with >30min idle), %s",
+                 total_employees, high_idle, datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
     except Exception as e:
         log.error("send daily report failed: %s", e)

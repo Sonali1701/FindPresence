@@ -150,11 +150,6 @@ def build_daily_report_html(employees, report_date, emp_config):
         idle_seconds = emp.get("total_seconds", 0)
         total_idle_all += idle_seconds
 
-        # Get working hours from emp_config
-        emp_email = emp.get("email", "").lower()
-        emp_data = emp_config.get(emp_email, {})
-        hours = f"{emp_data.get('display_window_start', '—')} – {emp_data.get('display_window_end', '—')} EDT"
-
         # Highlight if idle time is significant
         row_bg = "background:#fff5f5;" if idle_seconds > 1800 else ""  # > 30 min
         time_color = "#ef4444" if idle_seconds > 1800 else "#6b7280"
@@ -168,7 +163,6 @@ def build_daily_report_html(employees, report_date, emp_config):
             f'<td style="padding:10px 14px;font-weight:600">{emp["name"]}</td>'
             f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{emp["email"]}</td>'
             f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{emp.get("department", "—")}</td>'
-            f'<td style="padding:10px 14px;color:#6b7280;font-size:12px">{hours}</td>'
             f'<td style="padding:10px 14px;text-align:center;color:{time_color};font-weight:700">{emp["total_duration"]}</td>'
             f'<td style="padding:10px 14px;color:#6b7280;font-size:12px;text-align:center">{emp.get("event_count", 0)}</td>'
             f'</tr>'
@@ -253,9 +247,6 @@ def build_daily_report_html(employees, report_date, emp_config):
                 <th style="padding:12px 10px;text-align:left;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
                            color:#6b7280;font-weight:600">Department</th>
-                <th style="padding:12px 10px;text-align:left;font-size:11px;
-                           text-transform:uppercase;letter-spacing:.06em;
-                           color:#6b7280;font-weight:600">Working Hours (EDT)</th>
                 <th style="padding:12px 10px;text-align:center;font-size:11px;
                            text-transform:uppercase;letter-spacing:.06em;
                            color:#6b7280;font-weight:600">Total Idle Time</th>

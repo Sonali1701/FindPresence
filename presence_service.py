@@ -136,6 +136,113 @@ def _fmt_est_human(ts):
     return dt.strftime("%d %b %Y, %H:%M EST")
 
 
+def build_daily_report_html(daily_offenders, report_date):
+    """Build HTML email for daily summary report of employees idle 10+ min more than 2x."""
+    n = len(daily_offenders)
+    if n == 0:
+        return None
+
+    date_str = datetime.fromtimestamp(report_date, tz=timezone.utc).strftime("%d %B %Y")
+
+    rows_html = ""
+    for i, emp in enumerate(daily_offenders, 1):
+        rows_html += (
+            f'<tr style="border-bottom:1px solid #e5e7eb">'
+            f'<td style="padding:10px 14px;text-align:center;font-weight:600">{i}</td>'
+            f'<td style="padding:10px 14px;font-weight:600">{emp["name"]}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280">{emp["email"]}</td>'
+            f'<td style="padding:10px 14px;color:#6b7280">{emp["department"]}</td>'
+            f'<td style="padding:10px 14px;text-align:center;color:#ef4444;font-weight:700">{emp["count"]}x</td>'
+            f'<td style="padding:10px 14px;font-weight:600;color:#ef4444">{emp["total_duration"]}</td>'
+            f'</tr>'
+        )
+
+    return f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:system-ui,-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0">
+  <tr><td align="center">
+    <table width="700" cellpadding="0" cellspacing="0"
+           style="background:#ffffff;border-radius:10px;overflow:hidden;
+                  border:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.07)">
+
+      <!-- Header -->
+      <tr>
+        <td style="background:#111827;padding:20px 28px">
+          <span style="color:#38bdf8;font-size:13px;font-weight:700;letter-spacing:.06em;
+                       text-transform:uppercase">FindPresence</span>
+          <span style="color:#ef4444;font-size:13px;font-weight:700;margin-left:12px">
+            &bull; Daily Inactivity Report
+          </span>
+        </td>
+      </tr>
+
+      <!-- Summary -->
+      <tr>
+        <td style="padding:24px 28px 16px">
+          <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827">
+            Daily Activity Summary
+          </p>
+          <p style="margin:0;font-size:13px;color:#6b7280">
+            <b>{date_str}</b>
+          </p>
+          <p style="margin:8px 0 0;font-size:13px;color:#6b7280">
+            <b>{n} employee{'s' if n != 1 else ''}</b> idle for 10+ minutes more than 2 times
+          </p>
+        </td>
+      </tr>
+
+      <!-- Table -->
+      <tr>
+        <td style="padding:0 28px 24px">
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+            <thead>
+              <tr style="background:#f3f4f6">
+                <th style="padding:10px 14px;text-align:center;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600;width:50px">#</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Employee</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Email</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Dept</th>
+                <th style="padding:10px 14px;text-align:center;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Count</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           color:#6b7280;font-weight:600">Total Idle</th>
+              </tr>
+            </thead>
+            <tbody>{rows_html}</tbody>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:14px 28px">
+          <p style="margin:0;font-size:11px;color:#9ca3af">
+            This is an automated daily summary report. Only employees with 2+ instances of 10+ minute inactivity are shown.
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
+"""
+
+
 def build_batch_alert_html(to_alert):
     """Build one HTML email summarising all employees who crossed the threshold."""
     n = len(to_alert)
@@ -404,3 +511,52 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
             log.error("batch send_mail failed: %s", e)
 
     db.log_poll(conn, True, len(active_ids))  # Always successful poll if we get here
+
+
+def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts):
+    """Send daily summary email for employees with 2+ 10-min idle events."""
+    offenders = db.daily_offenders(conn, date_start_ts, date_end_ts)
+
+    if not offenders:
+        log.info("Daily report: no offenders for %s", datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
+        return
+
+    # Convert rows to dicts with formatted duration
+    def fmt_dur(seconds):
+        seconds = int(seconds)
+        h, rem = divmod(seconds, 3600)
+        m, s = divmod(rem, 60)
+        if h:
+            return f"{h}h {m}m"
+        if m:
+            return f"{m}m"
+        return f"{s}s"
+
+    daily_offenders_list = [
+        {
+            "name": row["display_name"] or row["email"],
+            "email": row["email"],
+            "department": row["department"] or "—",
+            "count": row["count"],
+            "total_duration": fmt_dur(row["total_seconds"]),
+        }
+        for row in offenders
+    ]
+
+    html = build_daily_report_html(daily_offenders_list, date_start_ts)
+    if not html:
+        return
+
+    n = len(daily_offenders_list)
+    subject = f"[FindPresence] Daily Report — {n} employee{'s' if n != 1 else ''} idle 2+ times"
+
+    try:
+        client.send_mail(
+            sender=cfg["notify_from"],
+            to=cfg["notify_to"],
+            subject=subject,
+            body_html=html,
+        )
+        log.info("Daily report sent — %d employees, %s", n, datetime.fromtimestamp(date_start_ts).strftime("%Y-%m-%d"))
+    except Exception as e:
+        log.error("send daily report failed: %s", e)

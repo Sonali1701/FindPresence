@@ -329,6 +329,25 @@ def inactivity_frequency_chart(conn, since_ts):
     ).fetchall()
 
 
+def daily_offenders(conn, date_start_ts, date_end_ts):
+    """Get employees with 2+ instances of 10+ min inactivity on a specific day."""
+    return conn.execute(
+        """SELECT u.id, u.email, u.display_name, u.department,
+                  COUNT(e.id) AS count,
+                  COALESCE(SUM(e.duration_seconds), 0) AS total_seconds
+           FROM users u
+           JOIN inactivity_events e ON e.user_id=u.id
+           WHERE e.alerted=1
+                 AND e.started_ts >= ?
+                 AND e.started_ts < ?
+                 AND u.ignored=0
+           GROUP BY u.id
+           HAVING COUNT(e.id) >= 2
+           ORDER BY COUNT(e.id) DESC""",
+        (date_start_ts, date_end_ts),
+    ).fetchall()
+
+
 def all_user_stats(conn, since_ts=None):
     """Get statistics for all users for comparison."""
     if since_ts is None:

@@ -145,12 +145,19 @@ def _fmt_est_clock(ts):
 
 
 def _window_seconds(emp_data):
-    """Length of an employee's monitoring window in seconds (handles overnight)."""
+    """Length of an employee's full working day (DISPLAY window) in seconds.
+
+    Used as the presence-% denominator. Idle is only ever tracked during the
+    narrower monitoring window, so any 'grace' period before monitoring starts
+    (e.g. Sonali's 3-7PM IST) automatically counts as available time.
+    """
     if not emp_data:
         return 0
     try:
-        sh, sm = emp_data["window_start"].split(":")
-        eh, em = emp_data["window_end"].split(":")
+        start_str = emp_data.get("display_window_start") or emp_data["window_start"]
+        end_str = emp_data.get("display_window_end") or emp_data["window_end"]
+        sh, sm = start_str.split(":")
+        eh, em = end_str.split(":")
         start = int(sh) * 3600 + int(sm) * 60
         end = int(eh) * 3600 + int(em) * 60
     except (KeyError, ValueError, AttributeError):
@@ -552,8 +559,11 @@ def poll_once(client, conn, cfg, threshold, emp_config=None):
                 streak_started_ts=None,
                 streak_alerted=0,
             )
-            # Track login/logout: record first + last active time during their shift window
-            if user_armed:
+            # Track login/logout across the full working day (display window),
+            # so a grace period before monitoring (e.g. Sonali's 3-7PM) still
+            # counts toward her login time.
+            in_working_day = user_in_display_window(emp_data) if emp_data else user_armed
+            if in_working_day:
                 db.record_active(conn, uid, now_est().strftime("%Y-%m-%d"), now)
         elif user_armed:
             # User is INACTIVE and WITHIN their monitoring window — track inactivity

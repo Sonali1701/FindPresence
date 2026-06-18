@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS daily_presence (
     last_active_ts REAL,
     PRIMARY KEY (user_id, day)
 );
+
+CREATE TABLE IF NOT EXISTS app_state (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 
@@ -149,6 +154,20 @@ def end_inactivity(conn, uid, ended_ts):
                SET ended_ts=?, duration_seconds=?-started_ts
                WHERE user_id=? AND ended_ts IS NULL""",
             (ended_ts, ended_ts, uid),
+        )
+
+
+def get_state(conn, key, default=None):
+    row = conn.execute("SELECT value FROM app_state WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_state(conn, key, value):
+    with _lock, conn:
+        conn.execute(
+            """INSERT INTO app_state(key, value) VALUES(?, ?)
+               ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+            (key, value),
         )
 
 

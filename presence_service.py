@@ -484,6 +484,11 @@ def run_loop(cfg, stop_event):
             poll_once(client, conn, cfg, threshold, emp_config)
         except Exception as e:
             log.exception("poll loop error: %s", e)
+        # Send the end-of-day report once per day (after the configured EST time).
+        try:
+            maybe_send_daily_report(client, conn, cfg, emp_config)
+        except Exception as e:
+            log.exception("daily report scheduler error: %s", e)
         stop_event.wait(interval)
 
 
@@ -629,7 +634,7 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, day_str, em
 
     if not employees_data:
         log.info("Daily report: no data for %s", day_str)
-        return
+        return True  # nothing to send — treat as done (don't retry)
 
     def fmt_dur(seconds):
         seconds = int(seconds)
@@ -672,7 +677,7 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, day_str, em
 
     html = build_daily_report_html(employees_list, date_start_ts)
     if not html:
-        return
+        return True
 
     total_employees = len(employees_list)
     attention = sum(1 for e in employees_list
@@ -689,5 +694,29 @@ def send_daily_report(client, conn, cfg, date_start_ts, date_end_ts, day_str, em
         )
         log.info("Daily report sent — %d employees (%d need attention), %s",
                  total_employees, attention, day_str)
+        return True
     except Exception as e:
         log.error("send daily report failed: %s", e)
+        return False
+
+
+# Daily report fires once per day after this EST time (defaults: 19:30 EST,
+# just after the last shift — Dehradun, ends 19:00 EST — closes out).
+def maybe_send_daily_report(client, conn, cfg, emp_config):
+    """Called every poll cycle. Sends today's report once, after the configured EST time."""
+    send_hour = int(cfg.get("report_hour_est", 19))
+    send_min = int(cfg.get("report_minute_est", 30))
+
+    now = now_est()
+    if (now.hour, now.minute) < (send_hour, send_min):
+        return  # too early in the day
+
+    today_str = now.strftime("%Y-%m-%d")
+    if db.get_state(conn, "last_report_date") == today_str:
+        return  # already sent today
+
+    start_ts, end_ts, day_str = est_day_bounds(days_ago=0)  # today's full EST day
+    ok = send_daily_report(client, conn, cfg, start_ts, end_ts, day_str, emp_config)
+    if ok:
+        db.set_state(conn, "last_report_date", today_str)
+        log.info("Daily report scheduler: marked %s as sent", today_str)

@@ -1,6 +1,6 @@
 {
   "employees": [
-    {"email": "swamy@radixsol.com", "department": "Sales", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
+    {"email": "swamy@radixsol.com", "department": "Sales", "location": "Vadodara", "display_window_start": "23:30", "display_window_end": "13:30", "window_start": "23:30", "window_end": "13:30"},
     {"email": "lisa.hopkins@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "bryan.smith@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "het@radixsol.com", "department": "IT", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
@@ -16,7 +16,7 @@
     {"email": "betsy@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "savleen@radixsol.com", "department": "US Account", "location": "Remote", "display_window_start": "06:30", "display_window_end": "15:30", "window_start": "06:30", "window_end": "15:30"},
     {"email": "shivani@radixsol.com", "department": "US Account", "location": "Remote", "display_window_start": "06:30", "display_window_end": "15:30", "window_start": "06:30", "window_end": "15:30"},
-    {"email": "charmi@radixsol.com", "department": "Sales", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
+    {"email": "charmi@radixsol.com", "department": "Sales", "location": "Vadodara", "display_window_start": "23:30", "display_window_end": "08:30", "window_start": "23:30", "window_end": "08:30"},
     {"email": "austin.carter@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "diana.patel@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "sara.adler@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
@@ -41,13 +41,11 @@
     {"email": "himani.a@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "anvenshi.t@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "rohit.b@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
-    {"email": "riya.c@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "nishant.t@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "ankit.n@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "mansha.a@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "parth.s@radixsol.com", "department": "Compliance", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "viren.w@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
-    {"email": "neetu.d@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "paras.s@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "nisarg@radixsol.com", "department": "IT", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "aditya.roy@radixsol.com", "department": "IT", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
@@ -55,7 +53,11 @@
     {"email": "prakriti.k@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
     {"email": "rimpy.r@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
     {"email": "akriti.k@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
-    {"email": "virinchi.a@radixsol.com", "department": "IT", "location": "Vadodara", "display_window_start": "04:30", "display_window_end": "13:30", "window_start": "04:30", "window_end": "13:30"}
+    {"email": "virinchi.a@radixsol.com", "department": "IT", "location": "Vadodara", "display_window_start": "04:30", "display_window_end": "13:30", "window_start": "04:30", "window_end": "13:30"},
+    {"email": "ashlynn.c@radixsol.com", "department": "Delivery", "location": "Vadodara", "display_window_start": "09:00", "display_window_end": "18:00", "window_start": "09:00", "window_end": "18:00"},
+    {"email": "boniam.c@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
+    {"email": "sai.d@radixsol.com", "department": "Delivery", "location": "Dehradun", "display_window_start": "10:00", "display_window_end": "19:00", "window_start": "10:00", "window_end": "19:00"},
+    {"email": "muthu.m@radixsol.com", "department": "Delivery", "location": "Remote", "display_window_start": "23:30", "display_window_end": "08:30", "window_start": "23:30", "window_end": "08:30"}
 
   ]
 }
